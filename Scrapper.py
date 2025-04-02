@@ -147,7 +147,8 @@ initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-
 
 
 #resumo:
-#1ºO código acessa o portal da Coventry University e coleta os perfis dos pesquisadores.
+#1ºO código acede ao portal da Coventry University e coleta os perfis dos pesquisadores.
 #2º Para cada perfil, ele acessa a seção "Research Output" e coleta as publicações.
 #3º As informações são organizadas e salvas no arquivo scraper_results.json.
+
 
