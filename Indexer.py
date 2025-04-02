@@ -33,7 +33,7 @@ with open('pub_name.json', 'w') as f:ujson.dump(pubName, f)
 with open('pub_url.json', 'w') as f:ujson.dump(pubURL, f)
 with open('pub_cu_author.json', 'w') as f:ujson.dump(pubCUAuthor, f)
 with open('pub_date.json', 'w') as f: ujson.dump(pubDate, f)
-
+#cada um destes ficheiros json armazenam todos os nomes das publicações/url/autor/data
 
 #Open a file with publication names in read mode
 with open('pub_name.json','r') as f:publication=f.read()
@@ -53,6 +53,7 @@ pub_list = []
 pub_list_wo_sc = []
 print(len(pubName))
 
+#o código tokeniza o nome de cada publicação, remove as stopwords e aplica o stemming nas palavras, criando uma versão "limpa" da publicação:
 for file in pubName:
     #Splitting strings to tokens(words)
     words = word_tokenize(file)
@@ -63,7 +64,7 @@ for file in pubName:
     pub_list_first_stem.append(stem_word)
     pub_list.append(file)
 
-#Removing all below characters
+#Removing all below characters (dos nomes das publicações)
 special_characters = '''!()-—[]{};:'"\, <>./?@#$%^&*_~0123456789+=’‘'''
 for file in pub_list:
     word_wo_sc = ""
@@ -78,6 +79,7 @@ for file in pub_list:
         pub_list_wo_sc.append(word_wo_sc)
 
 #Stemming Process
+#aplica o stemming e remove stopwords novamente, após a remoção dos caracteres especiais
 pub_list_stem_wo_sw = []
 for name in pub_list_wo_sc:
     words = word_tokenize(name)
@@ -90,6 +92,8 @@ for name in pub_list_wo_sc:
 data_dict = {} #Inverted Index holder
 
 # Indexing process
+# indexação invertida, onde cada palavra é mapeada para os índices das publicações que a contêm.
+#vai ficar cada palavra do nome das publicações e o numero dos documentos em que aparece.
 for a in range(len(pub_list_stem_wo_sw)):
     for b in pub_list_stem_wo_sw[a].split():
         if b not in data_dict:
@@ -111,3 +115,4 @@ with open('publication_list_stemmed.json', 'w') as f:
 
 with open('publication_indexed_dictionary.json', 'w') as f:
     ujson.dump(data_dict, f)
+

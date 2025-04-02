@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st #cria a interface web
 from PIL import Image
 import ujson
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -20,7 +20,7 @@ tfidf = TfidfVectorizer()
 # Load the data
 with open('publication_list_stemmed.json', 'r') as f:
     pub_list_first_stem = ujson.load(f)
-with open('publication_indexed_dictionary.json', 'r') as f:
+with open('publication_indexed_dictionary.json', 'r') as f: #{nome publicação:[0,1,5,..] publicações em que aparece}
     pub_index = ujson.load(f)
 with open('author_list_stemmed.json', 'r') as f:
     author_list_first_stem = ujson.load(f)
@@ -37,6 +37,11 @@ with open('pub_cu_author.json', 'r') as f:
 with open('pub_date.json', 'r') as f:
     pub_date = ujson.load(f)
 
+
+#1. processa a pesquisa do user:
+# - exact (AND) encontra publicações que contêm todas as palavras inseridas.
+# - relevant (OR) encontra publicações que contêm qualquer uma das palavras inseridas.
+#2. Calcula a similaridade do cosseno entre a query e os documentos encontrados.
 
 def search_data(input_text, operator_val, search_type):
     output_data = {}
@@ -150,7 +155,7 @@ def search_data(input_text, operator_val, search_type):
     return output_data
 
 
-def app():
+def app(): #interface Streamlit
 
         # Load the image and display it
     image = Image.open('cire.png')
@@ -189,6 +194,8 @@ def app():
 
     st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)
 
+
+# Classifica os resultados pelo score do cosseno.
 
 def show_results(output_data, search_type):
     aa = 0

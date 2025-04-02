@@ -24,7 +24,7 @@ stemmer = PorterStemmer()
 stop_words = stopwords.words('english')
 
 #Remove StopWords and Stemming
-def remove_stopwords(data = []):
+def remove_stopwords(data = []): #função recebe uma lista de textos (abstracts), removendo stopwords e reduz as palavras às suas raízes
     data_list = []
     for name in data:
         words = word_tokenize(name)
@@ -123,3 +123,6 @@ plt.show()
 # Save as picklefile
 with open('model_MultiNB.pkl', 'wb') as picklefile:
     pickle.dump(parameters.named_steps['clf'], picklefile)
+
+
+#Resumo: Este código realiza uma análise de textos (abstracts) e classifica-os em uma das três categorias (Engineering, Business, Art) usando técnicas de processamento de linguagem natural e aprendizado de máquina.

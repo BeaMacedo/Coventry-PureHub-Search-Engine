@@ -36,7 +36,7 @@ def initCrawlerScraper(seed,max_profiles=500):
     driver = webdriver.Chrome(ChromeDriverManager().install(), options=webOpt)
     driver.get(seed)  # Start with the original link
 
-    Links = []  # Array with pureportal profiles URL
+    Links = []  # Array with pureportal profiles URL (dos autores)
     pub_data = []  # To store publication information for each pureportal profile
 
     nextLink = driver.find_element_by_css_selector(".nextLink").is_enabled()  # Check if the next page link is enabled
@@ -49,7 +49,7 @@ def initCrawlerScraper(seed,max_profiles=500):
         # Extracting exact URL by spliting string into list
         for link in bs.findAll('a', class_='link person'):
             url = str(link)[str(link).find('https://pureportal.coventry.ac.uk/en/persons/'):].split('"')
-            Links.append(url[0])
+            Links.append(url[0]) #Salva a URL do perfil do autor, vai acabar por ter todas as URLs dos perfis de pesquisadores.
             
         # Click on Next button to visit next page
         try:
@@ -70,6 +70,7 @@ def initCrawlerScraper(seed,max_profiles=500):
 
     print("Scraping publication data for ", len(Links), " pureportal profiles...")
     count = 0
+    # O código agora visita cada perfil e procura informações sobre publicações:
     for link in Links:
         # Visit each link to get data
         time.sleep(1)  # Delay of 1 second to hit next data
@@ -78,7 +79,7 @@ def initCrawlerScraper(seed,max_profiles=500):
             if driver.find_elements_by_css_selector(".portal_link.btn-primary.btn-large"):
                 element = driver.find_elements_by_css_selector(".portal_link.btn-primary.btn-large")
                 for a in element:
-                    if "research output".lower() in a.text.lower():
+                    if "research output".lower() in a.text.lower(): # link "Research Output" para ver publicações
                         driver.execute_script("arguments[0].click();", a)
                         driver.get(driver.current_url)
                         # Get name of Author
@@ -105,7 +106,7 @@ def initCrawlerScraper(seed,max_profiles=500):
                                 print("CU Author :", name.text)
                                 print("Date :", date.text)
                                 print("\n")
-                                pub_data.append(data)
+                                pub_data.append(data) #Baixa os dados de cada publicação (Nome, URL, Autor e Data) e armazena essas informações no dicionário pub_data
             else:
                 # Get name of Author
                 name = driver.find_element_by_css_selector("div[class='header person-details']>h1")
@@ -137,10 +138,16 @@ def initCrawlerScraper(seed,max_profiles=500):
     driver.quit()
     # Writing all the scraped results in a file with JSON format
     with open('scraper_results.json', 'w') as f:
-        ujson.dump(pub_data, f)
+        ujson.dump(pub_data, f) # todas as publicações coletadas são salvas no arquivo scraper_results.json
 
+#O arquivo scraper_results.json contém uma lista de dicionários, onde cada dicionário representa uma publicação extraída do site, com as chaves name, pub_url, cu_author e date
 
 initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
 
 
+
+#resumo:
+#1ºO código acessa o portal da Coventry University e coleta os perfis dos pesquisadores.
+#2º Para cada perfil, ele acessa a seção "Research Output" e coleta as publicações.
+#3º As informações são organizadas e salvas no arquivo scraper_results.json.
 
