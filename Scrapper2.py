@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup  # Library for parsing HTML data
 from selenium import webdriver  # Library for browser automation
 from selenium.common.exceptions import NoSuchElementException  # Exception for missing elements
 from webdriver_manager.chrome import ChromeDriverManager  # Driver manager for Chrome (We are using Chromium based )
+from selenium.webdriver.common.by import By
 
 
 # Delete files if present
@@ -18,6 +19,57 @@ from webdriver_manager.chrome import ChromeDriverManager  # Driver manager for C
 # except OSError:
 #     pass
 
+
+def get_abstract():
+    count = 0
+    webOpt = webdriver.ChromeOptions()
+    webOpt.add_experimental_option('excludeSwitches', ['enable-logging'])
+    webOpt.add_argument('--ignore-certificate-errors')
+    webOpt.add_argument('--incognito')
+    webOpt.headless = True
+    driver = webdriver.Chrome(service=webdriver.ChromeService(ChromeDriverManager().install()), options=webOpt)
+
+
+    with open('scraper_results.json', 'r') as f:
+        pub_data = ujson.load(f)
+        for resultado in pub_data:
+            #print("\n URL:", resultado["pub_url"])
+            url = resultado["pub_url"] #url de cada publicação
+
+            try:
+                driver.get(url) #carrega a página da aplicação
+                time.sleep(3)  # Aguarda a página carregar completamente
+
+                soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+                # Extrair abstract
+                abstract_div = soup.select_one("div.rendering_researchoutput_abstractportal div.textblock")
+
+                if abstract_div:
+                    abstract_text = abstract_div.get_text(strip=True) #se abstract_div for encontrado, o código extrai o texto contido dentro dessa div
+                    print(" Abstract encontrado")
+                    resultado["abstract"] = abstract_text #abstract adicionado ao dicionario
+                else:
+                    print(" Abstract NÃO encontrado!")
+                    count += 1
+
+            except Exception as e:
+                print("Erro ao processar URL:", url)
+                print(str(e))
+                count += 1
+
+        print(f"\n Total de abstracts não encontrados: {count}")
+
+        # Salvar os resultados atualizados
+        with open('scraper_results_with_abstracts.json', 'w') as f:
+            ujson.dump(pub_data, f, indent=2)
+
+        driver.quit()
+
+get_abstract()
+
+
+"""# para salvar a lista de URLs dos autores
 def write_authors(list1, file_name):
     # Function to write authors' URLs to a file
     with open(file_name, 'w', encoding='utf-8') as f:
@@ -26,62 +78,75 @@ def write_authors(list1, file_name):
 
 
 def initCrawlerScraper(seed, max_profiles=500):
+    MAX_NR_SEARCHES = 200
     # Initialize driver for Chrome
     webOpt = webdriver.ChromeOptions()
     webOpt.add_experimental_option('excludeSwitches', ['enable-logging'])
     webOpt.add_argument('--ignore-certificate-errors')
     webOpt.add_argument('--incognito')
     webOpt.headless = True
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=webOpt)
+    driver = webdriver.Chrome(service=webdriver.ChromeService(ChromeDriverManager().install()), options=webOpt)
     driver.get(seed)  # Start with the original link
 
-    Links = []  # Array with pureportal profiles URL
+    Links = []  # Array with pureportal profiles URL (dos autores)
     pub_data = []  # To store publication information for each pureportal profile
 
-    nextLink = driver.find_element_by_css_selector(".nextLink").is_enabled()  # Check if the next page link is enabled
+    nextLink = driver.find_element(By.CSS_SELECTOR, ".nextLink").is_enabled()  # Check if the next page link is enabled
     print("Crawler has begun...")
-    while (nextLink):
-        page = driver.page_source
+
+    # o loop seguinte é para conseguir os links dos autores
+    while (nextLink):  # enquanto existirem páginas seguintes ativas
+        page = driver.page_source  # Retorna o HTML completo da página como uma string
         # XML parser to parse each URL
+        # Extrai os links dos perfis de pesquisadores do HTML da página usando BeautifulSoup
         bs = BeautifulSoup(page, "lxml")  # Parse the page source using BeautifulSoup
 
         # Extracting exact URL by spliting string into list
         for link in bs.findAll('a', class_='link person'):
             url = str(link)[str(link).find('https://pureportal.coventry.ac.uk/en/persons/'):].split('"')
-            Links.append(url[0])
+            Links.append(
+                url[0])  # Salva a URL do perfil do autor, vai acabar por ter todas as URLs dos perfis de pesquisadores
 
         # Click on Next button to visit next page
         try:
-            if driver.find_element_by_css_selector(".nextLink"):
-                element = driver.find_element_by_css_selector(".nextLink")
-                driver.execute_script("arguments[0].click();", element)
+            if driver.find_element(By.CSS_SELECTOR, ".nextLink"):  # tenta encontrar o botao next
+                element = driver.find_element(By.CSS_SELECTOR, ".nextLink")
+                driver.execute_script("arguments[0].click();", element)  # clica no botao next
             else:
                 nextLink = False
         except NoSuchElementException:
-            break
+            break  # se o botao nao existir para o loop
 
-        # Check if the maximum number of profiles is reached
+        # Check if the maximum number of profiles is reached (se já chegamos aos 500 perfis)
         if len(Links) >= max_profiles:
             break
 
+    Links = Links[:MAX_NR_SEARCHES]
+
     print("Crawler has found ", len(Links), " pureportal profiles")
+    print(f"Found {len(Links)} author profiles.")
+    print(Links)
     write_authors(Links, 'Authors_URL.txt')  # Write the authors' URLs to a file
 
+    # -------------agora já temos o ficheiro "Authors_URL.txt" com os links de todos os perfis-----------------------
+
+    # Agora vamos a cada perfil e conseguir as informações das publicações de cada autor
     print("Scraping publication data for ", len(Links), " pureportal profiles...")
     count = 0
-    for link in Links:
+    for link in Links:  # vai a cada link da lista Links com os links de todos os perfis
         # Visit each link to get data
         time.sleep(1)  # Delay of 1 second to hit next data
         driver.get(link)
         try:
-            if driver.find_elements_by_css_selector(".portal_link.btn-primary.btn-large"):
-                element = driver.find_elements_by_css_selector(".portal_link.btn-primary.btn-large")
+            if driver.find_elements(By.CSS_SELECTOR, ".portal_link.btn-primary.btn-large"):
+                element = driver.find_elements(By.CSS_SELECTOR, ".portal_link.btn-primary.btn-large")
                 for a in element:
-                    if "research output".lower() in a.text.lower():
+                    if "research output".lower() in a.text.lower():  # link "Research Output" para ver publicações
                         driver.execute_script("arguments[0].click();", a)
                         driver.get(driver.current_url)
+
                         # Get name of Author
-                        name = driver.find_element_by_css_selector("div[class='header person-details']>h1")
+                        name = driver.find_elements(By.CSS_SELECTOR, "div[class='header person-details']>h1")
                         r = requests.get(driver.current_url)
                         # Parse all the data via BeautifulSoup
                         soup = BeautifulSoup(r.content, 'lxml')
@@ -104,10 +169,12 @@ def initCrawlerScraper(seed, max_profiles=500):
                                 print("CU Author :", name.text)
                                 print("Date :", date.text)
                                 print("\n")
-                                pub_data.append(data)
-            else:
+                                pub_data.append(
+                                    data)  # Baixa os dados de cada publicação (Nome, URL, Autor e Data) e armazena essas informações na lista pub_data
+
+            else:  # se nao houver botao "Research Output"
                 # Get name of Author
-                name = driver.find_element_by_css_selector("div[class='header person-details']>h1")
+                name = driver.find_elements(By.CSS_SELECTOR, "div[class='header person-details']>h1")
                 r = requests.get(link)
                 # Parse all the data via BeautifulSoup
                 soup = BeautifulSoup(r.content, 'lxml')
@@ -134,11 +201,22 @@ def initCrawlerScraper(seed, max_profiles=500):
 
     print("Crawler has scrapped data for ", len(pub_data), " pureportal publications")
     driver.quit()
+
+
     # Writing all the scraped results in a file with JSON format
     with open('scraper_results.json', 'w') as f:
-        ujson.dump(pub_data, f)
+        ujson.dump(pub_data, f) # todas as informações das publicações são salvas no arquivo scraper_results.json
 
+#O arquivo scraper_results.json contém uma lista de dicionários, onde cada dicionário representa uma publicação extraída do site, com as chaves name, pub_url, cu_author e date
 
 initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
 
 
+
+#resumo:
+#1ºO código acede ao portal da Coventry University e coleta os perfis dos pesquisadores.
+#2º Para cada perfil, ele acessa a seção "Research Output" e coleta as publicações.
+#3º As informações são organizadas e salvas no arquivo scraper_results.json.
+
+
+"""

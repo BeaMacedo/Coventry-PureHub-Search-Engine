@@ -1,5 +1,6 @@
 
 import nltk #NLTK for natural language processing tasks
+import ujson
 from nltk.corpus import stopwords # list of stop word 
 from nltk.tokenize import word_tokenize # To tokenize each word
 from nltk.stem import PorterStemmer # For specific rules to transform words to their stems
@@ -16,7 +17,7 @@ pubCUAuthor = []
 pubDate = []
 
 # Load the scraped results using ujson
-data_dict = ujson.loads(scraper_results)
+data_dict = ujson.loads(scraper_results) #cada item deste dicionario contem as informações sobre uma publicação
 
 # Get the length of the data_dict (number of publications)
 array_length = len(data_dict)
