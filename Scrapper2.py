@@ -1,4 +1,5 @@
 # import os  # Module for interacting with the operating system
+import json
 import time  # Module for time-related operations
 import ujson  # Module for working with JSON data
 from random import randint  # Module for generating random numbers
@@ -20,7 +21,7 @@ from selenium.webdriver.common.by import By
 #     pass
 
 
-def get_abstract():
+"""def get_abstract():
     count = 0
     webOpt = webdriver.ChromeOptions()
     webOpt.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -66,10 +67,10 @@ def get_abstract():
 
         driver.quit()
 
-get_abstract()
+get_abstract()"""
 
 
-"""# para salvar a lista de URLs dos autores
+# para salvar a lista de URLs dos autores
 def write_authors(list1, file_name):
     # Function to write authors' URLs to a file
     with open(file_name, 'w', encoding='utf-8') as f:
@@ -77,6 +78,8 @@ def write_authors(list1, file_name):
             f.write(list1[i] + '\n')
 
 
+
+"""
 def initCrawlerScraper(seed, max_profiles=500):
     MAX_NR_SEARCHES = 200
     # Initialize driver for Chrome
@@ -137,67 +140,42 @@ def initCrawlerScraper(seed, max_profiles=500):
         # Visit each link to get data
         time.sleep(1)  # Delay of 1 second to hit next data
         driver.get(link)
-        try:
-            if driver.find_elements(By.CSS_SELECTOR, ".portal_link.btn-primary.btn-large"):
-                element = driver.find_elements(By.CSS_SELECTOR, ".portal_link.btn-primary.btn-large")
-                for a in element:
-                    if "research output".lower() in a.text.lower():  # link "Research Output" para ver publicações
-                        driver.execute_script("arguments[0].click();", a)
-                        driver.get(driver.current_url)
+    try:
+        # Procurar pelo link "Research Output" dentro da lista de navegação
+        research_output_button = driver.find_elements(By.XPATH, "//a[contains(@href, 'publications') and contains(., 'Research output')]")
+        if research_output_button:
+            research_output_button[0].click()  # Clica no botão "Research output"
+            driver.get(driver.current_url)
 
-                        # Get name of Author
-                        name = driver.find_elements(By.CSS_SELECTOR, "div[class='header person-details']>h1")
-                        r = requests.get(driver.current_url)
-                        # Parse all the data via BeautifulSoup
-                        soup = BeautifulSoup(r.content, 'lxml')
+            # Get name of Author
+            name = driver.find_elements(By.CSS_SELECTOR, "div[class='header person-details']>h1")
+            r = requests.get(driver.current_url)
+            # Parse all the data via BeautifulSoup
+            soup = BeautifulSoup(r.content, 'lxml')
 
-                        # Extracting publication name, publication url, date and CU Authors
-                        table = soup.find('ul', attrs={'class': 'list-results'})
-                        if table != None:
-                            for row in table.findAll('div', attrs={'class': 'result-container'}):
-                                data = {}
-                                data['name'] = row.h3.a.text
-                                data['pub_url'] = row.h3.a['href']
-                                date = row.find("span", class_="date")
+            # Extracting publication name, publication url, date and CU Authors
+            table = soup.find('ul', attrs={'class': 'list-results'})
+            if table != None:
+                for row in table.findAll('div', attrs={'class': 'result-container'}):
+                    data = {}
+                    data['name'] = row.h3.a.text
+                    data['pub_url'] = row.h3.a['href']
+                    date = row.find("span", class_="date")
 
-                                rowitem = row.find_all(['div'])
-                                span = row.find_all(['span'])
-                                data['cu_author'] = name.text
-                                data['date'] = date.text
-                                print("Publication Name :", row.h3.a.text)
-                                print("Publication URL :", row.h3.a['href'])
-                                print("CU Author :", name.text)
-                                print("Date :", date.text)
-                                print("\n")
-                                pub_data.append(
-                                    data)  # Baixa os dados de cada publicação (Nome, URL, Autor e Data) e armazena essas informações na lista pub_data
-
-            else:  # se nao houver botao "Research Output"
-                # Get name of Author
-                name = driver.find_elements(By.CSS_SELECTOR, "div[class='header person-details']>h1")
-                r = requests.get(link)
-                # Parse all the data via BeautifulSoup
-                soup = BeautifulSoup(r.content, 'lxml')
-                # Extracting publication name, publication url, date and CU Authors
-                table = soup.find('div', attrs={'class': 'relation-list relation-list-publications'})
-                if table != None:
-                    for row in table.findAll('div', attrs={'class': 'result-container'}):
-                        data = {}
-                        data["name"] = row.h3.a.text
-                        data['pub_url'] = row.h3.a['href']
-                        date = row.find("span", class_="date")
-                        rowitem = row.find_all(['div'])
-                        span = row.find_all(['span'])
-                        data['cu_author'] = name.text
-                        data['date'] = date.text
-                        print("Publication Name :", row.h3.a.text)
-                        print("Publication URL :", row.h3.a['href'])
-                        print("CU Author :", name.text)
-                        print("Date :", date.text)
-                        print("\n")
-                        pub_data.append(data)
-        except Exception:
-            continue
+                    rowitem = row.find_all(['div'])
+                    span = row.find_all(['span'])
+                    data['cu_author'] = name.text
+                    data['date'] = date.text
+                    print("Publication Name :", row.h3.a.text)
+                    print("Publication URL :", row.h3.a['href'])
+                    print("CU Author :", name.text)
+                    print("Date :", date.text)
+                    print("\n")
+                    pub_data.append(data)  # Baixa os dados de cada publicação
+        else:
+            print("Research output button not found")
+    except Exception as e:
+        print(f"Error: {e}")
 
     print("Crawler has scrapped data for ", len(pub_data), " pureportal publications")
     driver.quit()
@@ -210,7 +188,7 @@ def initCrawlerScraper(seed, max_profiles=500):
 #O arquivo scraper_results.json contém uma lista de dicionários, onde cada dicionário representa uma publicação extraída do site, com as chaves name, pub_url, cu_author e date
 
 initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
-
+"""
 
 
 #resumo:
@@ -219,4 +197,3 @@ initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-
 #3º As informações são organizadas e salvas no arquivo scraper_results.json.
 
 
-"""
