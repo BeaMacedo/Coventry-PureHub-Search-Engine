@@ -78,7 +78,6 @@ def write_authors(list1, file_name):
             f.write(list1[i] + '\n')
 
 
-
 """
 def initCrawlerScraper(seed, max_profiles=500):
     MAX_NR_SEARCHES = 200
