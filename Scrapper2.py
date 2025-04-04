@@ -21,7 +21,7 @@ from selenium.webdriver.common.by import By
 #     pass
 
 
-"""def get_abstract():
+def get_abstract():
     count = 0
     webOpt = webdriver.ChromeOptions()
     webOpt.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -67,10 +67,10 @@ from selenium.webdriver.common.by import By
 
         driver.quit()
 
-get_abstract()"""
+get_abstract()
 
 
-# para salvar a lista de URLs dos autores
+"""# para salvar a lista de URLs dos autores
 def write_authors(list1, file_name):
     # Function to write authors' URLs to a file
     with open(file_name, 'w', encoding='utf-8') as f:
@@ -176,7 +176,7 @@ def initCrawlerScraper(seed, max_profiles=500):
 
 
 initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
-
+"""
 
 #este deu certo:
 """def initCrawlerScraper(seed: str, max_profiles=500):
