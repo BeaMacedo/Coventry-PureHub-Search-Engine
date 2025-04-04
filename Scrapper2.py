@@ -32,7 +32,7 @@ def write_authors(list1, file_name):
 
 #mudar o codigo que deu certo para ficar mais parecido ao do git
 def initCrawlerScraper(seed, max_profiles=500):
-    MAX_NR_SEARCHES = 10
+    MAX_NR_SEARCHES = 5
     # Initialize driver for Chrome
     webOpt = webdriver.ChromeOptions()
     webOpt.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -126,7 +126,7 @@ def initCrawlerScraper(seed, max_profiles=500):
         ujson.dump(pub_data, f, indent=2)
 
 
-#initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
+initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
 
 
 def get_abstract():
@@ -175,7 +175,7 @@ def get_abstract():
 
         driver.quit()
 
-#get_abstract()
+get_abstract()
 
 """ #codigo que o chat deu e funcionou a ir buscar as informações das publicações
 def initCrawlerScraper(seed: str, max_profiles=500):
