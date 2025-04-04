@@ -26,6 +26,21 @@ with open('author_list_stemmed.json', 'r') as f:
     author_list_first_stem = ujson.load(f)
 with open('author_indexed_dictionary.json', 'r') as f:
     author_index = ujson.load(f)
+
+
+
+
+with open('publication_abstract_list_stemmed_abstract.json', 'r') as f:
+    pub_abstract_list_first_stem = ujson.load(f)
+with open('publication_indexed_dictionary_abstract.json', 'r') as f:
+    pub_abstract_index = ujson.load(f)
+
+with open("abstract_inverted_index.json", "r") as f:
+    abstract_index_stem = ujson.load(f)  # stemm
+
+
+
+
 with open('author_names.json', 'r') as f:
     author_name = ujson.load(f)
 with open('pub_name.json', 'r') as f:
@@ -38,14 +53,16 @@ with open('pub_date.json', 'r') as f:
     pub_date = ujson.load(f)
 
 
+
+
 #1. processa a pesquisa do user:
 # - exact (AND) encontra publicações que contêm todas as palavras inseridas.
 # - relevant (OR) encontra publicações que contêm qualquer uma das palavras inseridas.
 #2. Calcula a similaridade do cosseno entre a query e os documentos encontrados.
 
-def search_data(input_text, operator_val, search_type):
+def search_data(input_text, operator_val, search_type): #função de procura
     output_data = {}
-    if operator_val == 2:
+    if operator_val == 2: #pesquisa exata (AND)
         input_text = input_text.lower().split()
         pointer = []
         for token in input_text:
@@ -61,16 +78,18 @@ def search_data(input_text, operator_val, search_type):
             word_list = word_tokenize(token)
 
             for x in word_list:
-                if x not in stop_words:
-                    stem_temp += stemmer.stem(x) + " "
+                if x not in stop_words: #remove stop words
+                    stem_temp += stemmer.stem(x) + " " #aplica stemming
             stem_word_file.append(stem_temp)
 
-            if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
+            if search_type == "publication" and pub_index.get(stem_word_file[0].strip()): #Se for "publication", pesquisa no pub_index
                 pointer = pub_index.get(stem_word_file[0].strip())
-            elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
+            elif search_type == "author" and author_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
                 pointer = author_index.get(stem_word_file[0].strip())
+            elif search_type == "abstract" and abstract_index_stem.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
+                pointer = abstract_index_stem.get(stem_word_file[0].strip())
 
-            if len(pointer) == 0:
+            if len(pointer) == 0: #se nao encontrou nada no indice, sem resultados
                 output_data = {}
             else:
                 for j in pointer:
@@ -78,11 +97,13 @@ def search_data(input_text, operator_val, search_type):
                         temp_file.append(pub_list_first_stem[j])
                     elif search_type == "author":
                         temp_file.append(author_list_first_stem[j])
+                    elif search_type == "abstract":
+                        temp_file.append(pub_abstract_list_first_stem[j])
 
-                temp_file = tfidf.fit_transform(temp_file)
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+                temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
+                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
 
-                for j in pointer:
+                for j in pointer: #Salva os resultados ordenados pela similaridade
                     output_data[j] = cosine_output[pointer.index(j)]
 
     else:  # Relevant operator (OR)
@@ -112,6 +133,9 @@ def search_data(input_text, operator_val, search_type):
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
                 set1 = set(author_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
+            elif search_type == "abstract" and abstract_index_stem.get(stem_word_file[0].strip()):
+                set1 = set(abstract_index_stem.get(stem_word_file[0].strip()))
+                pointer.extend(list(set1))
 
             if match_word == []:
                 match_word = list({z for z in pointer if z in set2 or (set2.add(z) or False)})
@@ -130,6 +154,8 @@ def search_data(input_text, operator_val, search_type):
                         temp_file.append(pub_list_first_stem[j])
                     elif search_type == "author":
                         temp_file.append(author_list_first_stem[j])
+                    elif search_type == "abstract":
+                        temp_file.append(pub_abstract_list_first_stem[j])
 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
@@ -145,6 +171,8 @@ def search_data(input_text, operator_val, search_type):
                         temp_file.append(pub_list_first_stem[j])
                     elif search_type == "author":
                         temp_file.append(author_list_first_stem[j])
+                    elif search_type == "abstract":
+                        temp_file.append(pub_abstract_list_first_stem[j])
 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
@@ -175,7 +203,7 @@ def app(): #interface Streamlit
     )
     search_type = st.radio(
         "Search in:",
-        ['Publications', 'Authors'],
+        ['Publications', 'Authors', 'Abstracts'],
         index=0,
         key="search_type_input",
         horizontal=True,
@@ -186,6 +214,8 @@ def app(): #interface Streamlit
             output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "publication")
         elif search_type == "Authors":
             output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "author")
+        elif search_type == "Abstracts":
+            output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "abstract")
         else:
             output_data = {}
 
@@ -199,7 +229,7 @@ def app(): #interface Streamlit
 
 def show_results(output_data, search_type):
     aa = 0
-    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
+    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True) #Ordena os resultados pela pontuação de similaridade
 
     # Show the total number of research results
     st.info(f"Showing results for: {len(rank_sorting)}")
@@ -219,6 +249,12 @@ def show_results(output_data, search_type):
                 st.markdown(f"*{pub_name[id_val].strip()}*")
                 st.markdown(f"**{pub_url[id_val]}**")
             elif search_type == "Authors":
+                st.caption(f"{pub_date[id_val].strip()}")
+                st.markdown(f"**{author_name[id_val].strip()}**")
+                st.markdown(f"*{pub_name[id_val].strip()}*")
+                st.markdown(f"**{pub_url[id_val]}**")
+                st.markdown(f"Ranking: {ranking[0]:.2f}")
+            elif search_type == "Abstracts":
                 st.caption(f"{pub_date[id_val].strip()}")
                 st.markdown(f"**{author_name[id_val].strip()}**")
                 st.markdown(f"*{pub_name[id_val].strip()}*")

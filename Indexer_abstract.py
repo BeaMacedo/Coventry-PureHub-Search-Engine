@@ -5,24 +5,60 @@ from nltk.corpus import stopwords # list of stop word
 from nltk.tokenize import word_tokenize # To tokenize each word
 from nltk.stem import PorterStemmer # For specific rules to transform words to their stems
 
-
-# Preprosessing data before indexing
 with open('scraper_results_with_abstracts.json', 'r') as doc: scraper_results=doc.read()
-
-# Initialize empty lists to store publication name, URL, author, and date
-pubAbstract = []
-
-# Load the scraped results using ujson
 data_dict = ujson.loads(scraper_results) #cada item deste dicionario contem as informações sobre uma publicação
+
+
+nltk.download('stopwords')
+nltk.download('punkt')
+
+#Predefined stopwords in nltk are used
+stop_words = set(stopwords.words('english')) #para ser um conjunto em vez de lista e ser mais rapido
+#print(stop_words)
+stemmer = PorterStemmer()
+
+inverted_index = {}
+special_characters = '''!()-—[]{};:'"\, <>./?@#$%^&*_~0123456789+=’‘'''
+
+for i, item in enumerate(data_dict):
+
+    if "abstract" in item:
+        abstract = item["abstract"].lower()  # Tornar tudo minúsculo
+        cleaned_abstract = ""
+        # Remover caracteres especiais
+        for char in abstract:
+            if char in special_characters:
+                cleaned_abstract += ' '  # Substituir caracteres especiais por espaços
+            else:
+                cleaned_abstract += char
+        tokens = word_tokenize(cleaned_abstract)
+        processed_tokens = [stemmer.stem(token) for token in tokens if token not in stop_words]
+
+        for token in processed_tokens:
+            if token not in inverted_index:
+                if token != 'background':
+                    inverted_index[token] = [i]
+            else:
+                if i not in inverted_index[token]:
+                    inverted_index[token].append(i)
+
+with open('abstract_inverted_index.json', 'w') as f:
+    ujson.dump(inverted_index, f)
+
+
+
+
+""" isto fiz quando criei o indice invertido e nao considerei os indices das publicações que nao tinham abstract, VAI DE ACORDO AO QUE O CODGIO DO GIT FAZIA
+with open('scraper_results_with_abstracts.json', 'r') as doc: scraper_results=doc.read()
+data_dict = ujson.loads(scraper_results) #cada item deste dicionario contem as informações sobre uma publicação
+
 
 # Get the length of the data_dict (number of publications)
 array_length = len(data_dict)
 # Print the number of publications
 print(array_length)
 
-for item in data_dict:
-    if "abstract" in item and item["abstract"]:  # Verifica se há um abstract presente
-        pubAbstract.append(item["abstract"])
+pubAbstract = [item["abstract"] if "abstract" in item and item["abstract"] else None for item in data_dict] #para manter em concordancia os indices originais das publicações
 
 with open('pub_abstract.json', 'w') as f: ujson.dump(pubAbstract, f) #vai guardar os abstracts das publicações neste ficheiro
 
@@ -107,4 +143,4 @@ with open('publication_abstract_list_stemmed_abstract.json', 'w') as f: #sem sto
 
 with open('publication_indexed_dictionary_abstract.json', 'w') as f: #indice invertido, onde se removeu caracteres especiais, stop words e com stem
     ujson.dump(data_dict, f)
-
+"""

@@ -43,7 +43,7 @@ with open('pub_date.json', 'r') as f:
 # - relevant (OR) encontra publicações que contêm qualquer uma das palavras inseridas.
 #2. Calcula a similaridade do cosseno entre a query e os documentos encontrados.
 
-def search_data(input_text, operator_val, search_type):
+def search_data(input_text, operator_val, search_type): #função de procura
     output_data = {}
     if operator_val == 2:
         input_text = input_text.lower().split()
