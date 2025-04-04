@@ -141,4 +141,3 @@ def initCrawlerScraper(seed, max_profiles=500):
 
 initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
 
-
