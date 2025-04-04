@@ -17,7 +17,7 @@ pubCUAuthor = []
 pubDate = []
 
 # Load the scraped results using ujson
-data_dict = ujson.loads(scraper_results) #cada item deste dicionario contem as informações sobre uma publicação
+data_dict = ujson.loads(scraper_results) ## Converte JSON (string) para um dicionário, onde cada item deste dicionario contem as informações sobre uma publicação
 
 # Get the length of the data_dict (number of publications)
 array_length = len(data_dict)
@@ -49,31 +49,31 @@ nltk.download('punkt')
 #Predefined stopwords in nltk are used
 stop_words = stopwords.words('english')
 stemmer = PorterStemmer()
-pub_list_first_stem = []
-pub_list = []
-pub_list_wo_sc = []
+pub_list_first_stem = [] #nomes das publicações após tokenização, remoção de stopwords e stemming.
+pub_list = [] # Mantém os nomes das publicações originais
+pub_list_wo_sc = [] #Contém nomes das publicações sem caracteres especiais
 print(len(pubName))
 
-#o código tokeniza o nome de cada publicação, remove as stopwords e aplica o stemming nas palavras, criando uma versão "limpa" da publicação:
+#o código tokeniza o nome de cada publicação, remove as stopwords e aplica o stemming nas palavras
 for file in pubName:
     #Splitting strings to tokens(words)
-    words = word_tokenize(file)
+    words = word_tokenize(file) # Divide o nome da publicação em palavras
     stem_word = ""
     for i in words:
-        if i.lower() not in stop_words:
-            stem_word += stemmer.stem(i) + " "
+        if i.lower() not in stop_words: # Remove stopwords
+            stem_word += stemmer.stem(i) + " " # # Aplica stemming
     pub_list_first_stem.append(stem_word)
     pub_list.append(file)
 
 #Removing all below characters (dos nomes das publicações)
 special_characters = '''!()-—[]{};:'"\, <>./?@#$%^&*_~0123456789+=’‘'''
-for file in pub_list:
-    word_wo_sc = ""
-    if len(file.split()) ==1 : pub_list_wo_sc.append(file)
+for file in pub_list: #vai a cada nome original das publicações
+    word_wo_sc = "" #versão modificada do nome da publicação, sem caracteres especiais.
+    if len(file.split()) ==1 : pub_list_wo_sc.append(file) #se so tiver uma palavra essa palavra é adicionada à lista sem modificação
     else:
-        for a in file:
+        for a in file: #percorre cada caracter
             if a in special_characters:
-                word_wo_sc += ' '
+                word_wo_sc += ' ' #substitui caracteres especiais por espaço
             else:
                 word_wo_sc += a
         #print(word_wo_sc)
@@ -81,8 +81,8 @@ for file in pub_list:
 
 #Stemming Process
 #aplica o stemming e remove stopwords novamente, após a remoção dos caracteres especiais
-pub_list_stem_wo_sw = []
-for name in pub_list_wo_sc:
+pub_list_stem_wo_sw = [] #nomes das publicações sem caracteres especiais e com stemming e sem stop words
+for name in pub_list_wo_sc: #vai à lista com os nomes das publicações sem caracteres especiais
     words = word_tokenize(name)
     stem_word = ""
     for a in words:
@@ -96,9 +96,9 @@ data_dict = {} #Inverted Index holder
 # indexação invertida, onde cada palavra é mapeada para os índices das publicações que a contêm.
 #vai ficar cada palavra do nome das publicações e o numero dos documentos em que aparece.
 for a in range(len(pub_list_stem_wo_sw)):
-    for b in pub_list_stem_wo_sw[a].split():
+    for b in pub_list_stem_wo_sw[a].split(): #percorre cada palavra do nome de uma publicação
         if b not in data_dict:
-             data_dict[b] = [a]
+             data_dict[b] = [a] # Se a palavra não existe, cria uma nova entrada
         else:
             data_dict[b].append(a)
 
