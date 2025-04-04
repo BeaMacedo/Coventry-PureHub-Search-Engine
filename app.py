@@ -45,7 +45,7 @@ with open('pub_date.json', 'r') as f:
 
 def search_data(input_text, operator_val, search_type): #função de procura
     output_data = {}
-    if operator_val == 2:
+    if operator_val == 2: #pesquisa exata (AND)
         input_text = input_text.lower().split()
         pointer = []
         for token in input_text:
@@ -63,24 +63,25 @@ def search_data(input_text, operator_val, search_type): #função de procura
             for x in word_list:
                 if x not in stop_words:
                     stem_temp += stemmer.stem(x) + " "
-            stem_word_file.append(stem_temp)
+            stem_word_file.append(stem_temp)    #palavras pre processadas que vem do input do utilizador
 
-            if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
-                pointer = pub_index.get(stem_word_file[0].strip())
+            if search_type == "publication" and pub_index.get(stem_word_file[0].strip()): #Seleciona a primeira palavra da lista stem_word_file e dá a lista com as publicações onde essa palavra aparece
+                pointer = pub_index.get(stem_word_file[0].strip()) #o pointer fica com a lista de publicações que contém aquela palavra ex. "termo": [1,2,3]
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
                 pointer = author_index.get(stem_word_file[0].strip())
 
             if len(pointer) == 0:
                 output_data = {}
             else:
-                for j in pointer:
+                for j in pointer: # percorre os índices das publicações que têm a primeira palavra da query
                     if search_type == "publication":
-                        temp_file.append(pub_list_first_stem[j])
+                        temp_file.append(pub_list_first_stem[j]) #temp_file vai ficar com os nomes das publicações onde a palavra ocorre
                     elif search_type == "author":
-                        temp_file.append(author_list_first_stem[j])
+                        temp_file.append(author_list_first_stem[j]) #temp_file vai ficar com os nomes dos autores onde a palavra ocorre
 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+                #temp_file: Cada linha = uma publicação. Cada coluna = uma palavra única do vocabulário. Cada célula = peso TF-IDF da palavra nesse documento.
 
                 for j in pointer:
                     output_data[j] = cosine_output[pointer.index(j)]
@@ -198,7 +199,7 @@ def app(): #interface Streamlit
 # Classifica os resultados pelo score do cosseno.
 
 def show_results(output_data, search_type):
-    aa = 0
+    aa = 0 #contador de resultados
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
 
     # Show the total number of research results
@@ -206,7 +207,7 @@ def show_results(output_data, search_type):
 
     # Show the cards
     N_cards_per_row = 3
-    for n_row, (id_val, ranking) in enumerate(rank_sorting):
+    for n_row, (id_val, ranking) in enumerate(rank_sorting): #id_val: índice do documento e ranking: score de similaridade
         i = n_row % N_cards_per_row
         if i == 0:
             st.write("---")
@@ -235,4 +236,8 @@ def show_results(output_data, search_type):
 
 if __name__ == '__main__':
     app()
+
+
+
+
 

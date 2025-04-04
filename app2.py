@@ -35,8 +35,10 @@ with open('publication_abstract_list_stemmed_abstract.json', 'r') as f:
 with open('publication_indexed_dictionary_abstract.json', 'r') as f:
     pub_abstract_index = ujson.load(f)
 
-with open("abstract_inverted_index.json", "r") as f:
-    abstract_index_stem = ujson.load(f)  # stemm
+
+#da resolução da monica
+#with open("abstract_inverted_index.json", "r") as f:
+#    abstract_index_stem = ujson.load(f)  # stemm
 
 
 
@@ -51,6 +53,8 @@ with open('pub_cu_author.json', 'r') as f:
     pub_cu_author = ujson.load(f)
 with open('pub_date.json', 'r') as f:
     pub_date = ujson.load(f)
+with open('pub_abstract.json', 'r') as f:
+    pub_abstract = ujson.load(f)
 
 
 
@@ -86,8 +90,8 @@ def search_data(input_text, operator_val, search_type): #função de procura
                 pointer = pub_index.get(stem_word_file[0].strip())
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
                 pointer = author_index.get(stem_word_file[0].strip())
-            elif search_type == "abstract" and abstract_index_stem.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
-                pointer = abstract_index_stem.get(stem_word_file[0].strip())
+            elif search_type == "abstract" and pub_abstract_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
+                pointer = pub_abstract_index.get(stem_word_file[0].strip())
 
             if len(pointer) == 0: #se nao encontrou nada no indice, sem resultados
                 output_data = {}
@@ -133,8 +137,8 @@ def search_data(input_text, operator_val, search_type): #função de procura
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
                 set1 = set(author_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
-            elif search_type == "abstract" and abstract_index_stem.get(stem_word_file[0].strip()):
-                set1 = set(abstract_index_stem.get(stem_word_file[0].strip()))
+            elif search_type == "abstract" and pub_abstract_index.get(stem_word_file[0].strip()):
+                set1 = set(pub_abstract_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
 
             if match_word == []:
@@ -259,7 +263,7 @@ def show_results(output_data, search_type):
                 st.markdown(f"**{author_name[id_val].strip()}**")
                 st.markdown(f"*{pub_name[id_val].strip()}*")
                 st.markdown(f"**{pub_url[id_val]}**")
-                st.markdown(f"Ranking: {ranking[0]:.2f}")
+                st.markdown(f"**{pub_abstract[id_val]}**")
 
         aa += 1
 

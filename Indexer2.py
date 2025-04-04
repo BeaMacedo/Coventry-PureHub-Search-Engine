@@ -35,8 +35,7 @@ for item in data_dict: #nao faz mais sentido só ir BUSCAR TUDO ao scraper_resul
     pubURL.append(item["pub_url"])
     pubCUAuthor.append(item["cu_author"])
     pubDate.append(item["date"])
-    if 'abstract' in data_dict_abs[i].keys():   # Se a publicação no segundo ficheiro (scraper_results_with_abstracts.json) tiver um "abstract", adiciona-o à lista pubResumo
-        pubAbstract.append(data_dict_abs[i]["abstract"])
+    pubAbstract.append(data_dict_abs[i].get("abstract", "")) #se "abstract" não existir, vai pôr uma string vazia ""
     i+=1
 
 with open('pub_name.json', 'w') as f:ujson.dump(pubName, f)
@@ -46,6 +45,11 @@ with open('pub_date.json', 'w') as f: ujson.dump(pubDate, f)
 with open('pub_abstract.json', 'w') as f: ujson.dump(pubAbstract, f)
 #cada um destes ficheiros json armazenam todos os nomes das publicações/url/autor/data
 
+
+
+
+
+#-------------------------------------------------------Indice invertido dos nomes das publicações-------------------------------------------------------------------
 #Open a file with publication names in read mode
 with open('pub_name.json','r') as f:publication=f.read()
 

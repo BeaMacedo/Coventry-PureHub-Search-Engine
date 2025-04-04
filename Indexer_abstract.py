@@ -5,6 +5,8 @@ from nltk.corpus import stopwords # list of stop word
 from nltk.tokenize import word_tokenize # To tokenize each word
 from nltk.stem import PorterStemmer # For specific rules to transform words to their stems
 
+"""
+#solução da monica
 with open('scraper_results_with_abstracts.json', 'r') as doc: scraper_results=doc.read()
 data_dict = ujson.loads(scraper_results) #cada item deste dicionario contem as informações sobre uma publicação
 
@@ -45,22 +47,10 @@ for i, item in enumerate(data_dict):
 with open('abstract_inverted_index.json', 'w') as f:
     ujson.dump(inverted_index, f)
 
+"""
 
 
-
-""" isto fiz quando criei o indice invertido e nao considerei os indices das publicações que nao tinham abstract, VAI DE ACORDO AO QUE O CODGIO DO GIT FAZIA
-with open('scraper_results_with_abstracts.json', 'r') as doc: scraper_results=doc.read()
-data_dict = ujson.loads(scraper_results) #cada item deste dicionario contem as informações sobre uma publicação
-
-
-# Get the length of the data_dict (number of publications)
-array_length = len(data_dict)
-# Print the number of publications
-print(array_length)
-
-pubAbstract = [item["abstract"] if "abstract" in item and item["abstract"] else None for item in data_dict] #para manter em concordancia os indices originais das publicações
-
-with open('pub_abstract.json', 'w') as f: ujson.dump(pubAbstract, f) #vai guardar os abstracts das publicações neste ficheiro
+#-------------------------------------------------------Indice invertido dos abstract das publicações-------------------------------------------------------------------
 
 with open('pub_abstract.json','r') as f:publication=f.read()
 
@@ -84,6 +74,12 @@ print(len(pubAbstract))
 
 #o código tokeniza o nome de cada publicação, remove as stopwords e aplica o stemming nas palavras, criando uma versão "limpa" da publicação:
 for abstract in pubAbstract:
+
+    if not abstract.strip():  # Ignora abstracts vazios ou com só espaços
+        pub_abstract_list_first_stem.append("")
+        pub_abstract_list.append("")
+        continue
+
     #Splitting strings to tokens(words)
     words = word_tokenize(abstract)
     stem_word = ""
@@ -96,19 +92,30 @@ for abstract in pubAbstract:
 #Removing all below characters (dos nomes das publicações)
 special_characters = '''!()-—[]{};:'"\, <>./?@#$%^&*_~0123456789+=’‘'''
 for abstract in pub_abstract_list:
+
+    if not abstract.strip():
+        pub_abstract_list_wo_sc.append("")
+        continue
+
     word_wo_sc = ""
-    if len(abstract.split()) ==1 : pub_abstract_list_wo_sc.append(abstract)
-    else:
-        for a in abstract:
-            if a in special_characters:
-                word_wo_sc += ' '
-            else:
-                word_wo_sc += a
-        #print(word_wo_sc)
-        pub_abstract_list_wo_sc.append(word_wo_sc)
+    #if len(abstract.split()) ==1 : pub_abstract_list_wo_sc.append(abstract)
+    #else:
+    for a in abstract:
+        if a in special_characters:
+            word_wo_sc += ' '
+        else:
+            word_wo_sc += a
+    #print(word_wo_sc)
+    pub_abstract_list_wo_sc.append(word_wo_sc)
+
 
 #Stemming Process
 for abstract in pub_abstract_list_wo_sc:
+
+    if not abstract.strip():
+        pub_abstract_list_stem_wo_sw.append("")
+        continue
+
     words = word_tokenize(abstract)
     stem_word = ""
     for a in words:
@@ -122,9 +129,14 @@ data_dict = {} #Inverted Index holder
 # indexação invertida, onde cada palavra é mapeada para os índices das publicações que a contêm.
 #vai ficar cada palavra do nome das publicações e o numero dos documentos em que aparece.
 for a in range(len(pub_abstract_list_stem_wo_sw)):
+
+    if not pub_abstract_list_stem_wo_sw[a].strip():
+        continue  # ignora se o abstract for vazio
+
     for b in pub_abstract_list_stem_wo_sw[a].split():
         if b not in data_dict:
-             data_dict[b] = [a]
+            if b != 'background':
+                data_dict[b] = [a]
         else:
             data_dict[b].append(a)
 
@@ -143,4 +155,3 @@ with open('publication_abstract_list_stemmed_abstract.json', 'w') as f: #sem sto
 
 with open('publication_indexed_dictionary_abstract.json', 'w') as f: #indice invertido, onde se removeu caracteres especiais, stop words e com stem
     ujson.dump(data_dict, f)
-"""
