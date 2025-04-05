@@ -126,7 +126,7 @@ def initCrawlerScraper(seed, max_profiles=500):
         ujson.dump(pub_data, f, indent=2)
 
 
-initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
+#initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
 
 
 def get_abstract():
@@ -175,7 +175,65 @@ def get_abstract():
 
         driver.quit()
 
-get_abstract()
+#get_abstract()
+
+
+import re
+
+
+def get_groups():
+    count = 0
+    webOpt = webdriver.ChromeOptions()
+    webOpt.add_experimental_option('excludeSwitches', ['enable-logging'])
+    webOpt.add_argument('--ignore-certificate-errors')
+    webOpt.add_argument('--incognito')
+    webOpt.headless = True
+    driver = webdriver.Chrome(service=webdriver.ChromeService(ChromeDriverManager().install()), options=webOpt)
+
+    with open('scraper_results.json', 'r') as f:
+        pub_data = ujson.load(f)
+        for resultado in pub_data:
+            # URL de cada publicação
+            url = resultado["pub_url"]
+
+            try:
+                driver.get(url)  # Carrega a página da publicação
+                time.sleep(3)  # Aguarda a página carregar completamente
+
+                soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+                # Encontrar o nome do grupo de pesquisa
+                group_link = soup.find('a', rel='Organisation', class_='link')
+
+                if group_link:
+                    group_name = group_link.find(
+                        'span').text.strip()  # Extrair o nome do grupo que está dentro do <span>
+                    print(f"Grupo encontrado: {group_name}")
+
+                    # Alterar o nome do grupo para uma lista
+                    # Usando uma expressão regular para dividir a string em partes
+                    group_list = re.split(r',\s*', group_name)  # Divide a string onde houver vírgula seguida de espaço
+
+                    resultado["research_group"] = group_list  # Adiciona a lista de grupos à publicação
+                else:
+                    print("NENHUM GRUPO ENCONTRADO")
+                    count += 1  # Contabiliza os casos sem grupo
+
+            except Exception as e:
+                print(f"Erro ao processar a URL {url}: {e}")
+                count += 1  # Contabiliza falhas na extração
+
+        print(f"Total de publicações sem grupo: {count}")
+
+        # Salvar os resultados com os grupos associados
+        with open('scraper_results_with_groups.json', 'w') as f:
+            ujson.dump(pub_data, f, indent=2)
+
+        driver.quit()  # Fechar o driver do Selenium
+
+
+get_groups()
+
 
 """ #codigo que o chat deu e funcionou a ir buscar as informações das publicações
 def initCrawlerScraper(seed: str, max_profiles=500):

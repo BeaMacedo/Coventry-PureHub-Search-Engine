@@ -35,14 +35,6 @@ with open('publication_abstract_list_stemmed_abstract.json', 'r') as f:
 with open('publication_indexed_dictionary_abstract.json', 'r') as f:
     pub_abstract_index = ujson.load(f)
 
-
-#da resolução da monica
-#with open("abstract_inverted_index.json", "r") as f:
-#    abstract_index_stem = ujson.load(f)  # stemm
-
-
-
-
 with open('author_names.json', 'r') as f:
     author_name = ujson.load(f)
 with open('pub_name.json', 'r') as f:
@@ -58,13 +50,7 @@ with open('pub_abstract.json', 'r') as f:
 
 
 
-
-#1. processa a pesquisa do user:
-# - exact (AND) encontra publicações que contêm todas as palavras inseridas.
-# - relevant (OR) encontra publicações que contêm qualquer uma das palavras inseridas.
-#2. Calcula a similaridade do cosseno entre a query e os documentos encontrados.
-
-def search_data(input_text, operator_val, search_type): #função de procura
+def search_data(input_text, operator_val, search_type, selected_groups ): #função de procura
     output_data = {}
     if operator_val == 2: #pesquisa or
         input_text = input_text.lower().split() #separa a frase por espaços
