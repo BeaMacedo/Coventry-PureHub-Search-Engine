@@ -66,8 +66,8 @@ with open('pub_abstract.json', 'r') as f:
 
 def search_data(input_text, operator_val, search_type): #função de procura
     output_data = {}
-    if operator_val == 2: #pesquisa exata (AND)
-        input_text = input_text.lower().split()
+    if operator_val == 2: #pesquisa or
+        input_text = input_text.lower().split() #separa a frase por espaços
         pointer = []
         for token in input_text:
             if len(input_text) < 2:
@@ -79,12 +79,13 @@ def search_data(input_text, operator_val, search_type): #função de procura
             stem_temp = ""
             stem_word_file = []
             temp_file = []
-            word_list = word_tokenize(token)
+            word_list = word_tokenize(token) #ex. machine-learning!, o tokenize faz ['machine','-','learning','!'] quando o split dava tudo junto
 
             for x in word_list:
                 if x not in stop_words: #remove stop words
                     stem_temp += stemmer.stem(x) + " " #aplica stemming
             stem_word_file.append(stem_temp)
+            #print(stem_temp)
 
             if search_type == "publication" and pub_index.get(stem_word_file[0].strip()): #Se for "publication", pesquisa no pub_index
                 pointer = pub_index.get(stem_word_file[0].strip())
@@ -92,6 +93,8 @@ def search_data(input_text, operator_val, search_type): #função de procura
                 pointer = author_index.get(stem_word_file[0].strip())
             elif search_type == "abstract" and pub_abstract_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
                 pointer = pub_abstract_index.get(stem_word_file[0].strip())
+
+            #print(pointer)
 
             if len(pointer) == 0: #se nao encontrou nada no indice, sem resultados
                 output_data = {}
@@ -107,13 +110,15 @@ def search_data(input_text, operator_val, search_type): #função de procura
                 temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
 
+                print(pointer)
                 for j in pointer: #Salva os resultados ordenados pela similaridade
                     output_data[j] = cosine_output[pointer.index(j)]
+                print(output_data)
 
-    else:  # Relevant operator (OR)
+    else:  # operador and
         input_text = input_text.lower().split()
-        pointer = []
-        match_word = []
+        pointer = [] #documentos encontrados
+        match_word = [] #documentos que atendem aos critérios de todas as palavras da pesquisa
         for token in input_text:
             if len(input_text) < 2:
                 st.warning("Please enter at least 2 words to apply the operator.")
@@ -121,9 +126,9 @@ def search_data(input_text, operator_val, search_type): #função de procura
             # if len(token) <= 3:
             #     st.warning("Please enter more than 4 characters.")
             #     break
-            temp_file = []
-            set2 = set()
-            stem_word_file = []
+            temp_file = [] #armazena documentos temporários
+            set2 = set() #conjunto de documentos encontrados usado para garantir que apenas documentos comuns a todos os tokens sejam mantidos.
+            stem_word_file = [] #armazenar palavras após stemming
             word_list = word_tokenize(token)
             stem_temp = ""
             for x in word_list:
@@ -132,23 +137,23 @@ def search_data(input_text, operator_val, search_type): #função de procura
             stem_word_file.append(stem_temp)
 
             if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
-                set1 = set(pub_index.get(stem_word_file[0].strip()))
-                pointer.extend(list(set1))
+                set1 = set(pub_index.get(stem_word_file[0].strip())) #Recupera os documentos para a palavra
+                pointer.extend(list(set1)) #Adiciona os documentos encontrados ao pointer
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
                 set1 = set(author_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
             elif search_type == "abstract" and pub_abstract_index.get(stem_word_file[0].strip()):
                 set1 = set(pub_abstract_index.get(stem_word_file[0].strip()))
-                pointer.extend(list(set1))
+                pointer.extend(list(set1)) #adiciona os indices dos documentos onde aparece o token em questão
 
-            if match_word == []:
+            if match_word == []: #se match_word estiver vazia - 1ºtoken, ela será preenchida com documentos que já aparecem em pointer
                 match_word = list({z for z in pointer if z in set2 or (set2.add(z) or False)})
             else:
                 match_word.extend(list(set1))
-                match_word = list({z for z in match_word if z in set2 or (set2.add(z) or False)})
+                match_word = list({z for z in match_word if z in set2 or (set2.add(z) or False)}) # atualização da lista para garantir que apenas os documentos que correspondem a todos os tokens sejam mantidos.
 
         if len(input_text) > 1:
-            match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)}
+            match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)} #Depois dos tokens todos serem processados, verifica se todos os documentos em match_word estão em set2, ou seja se apenas contem documentos que apresentem todos os tokens em comum
 
             if len(match_word) == 0:
                 output_data = {}
