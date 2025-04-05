@@ -50,7 +50,7 @@ with open('pub_abstract.json', 'r') as f:
 
 
 
-def search_data(input_text, operator_val, search_type, selected_groups ): #função de procura
+def search_data(input_text, operator_val, search_type): #função de procura
     output_data = {}
     if operator_val == 2: #pesquisa or
         input_text = input_text.lower().split() #separa a frase por espaços
@@ -187,37 +187,109 @@ def app(): #interface Streamlit
     # Add a text description
     st.markdown("<p style='text-align: center;'> Uncover the brilliance: Explore profiles, groundbreaking work, and cutting-edge research by the exceptional minds of Coventry University.</p>", unsafe_allow_html=True)
 
+    # Opção para pesquisa por grupo
+    st.write("### 🔍 Explore by Research Group")
+    group_search = st.checkbox("Search by Research Group")
 
-    input_text = st.text_input("Search research:", key="query_input")
-    operator_val = st.radio(
-        "Search Filters",
-        ['Exact', 'Relevant'],
-        index=1,
-        key="operator_input",
-        horizontal=True,
-    )
-    search_type = st.radio(
-        "Search in:",
-        ['Publications', 'Authors', 'Abstracts'],
-        index=0,
-        key="search_type_input",
-        horizontal=True,
-    )
+    if group_search:
+        selected_groups = st.multiselect("Select one or more research groups:", group_names)
+        if st.button("SEARCH GROUPS"):
+            if selected_groups:
+                show_results_groups(selected_groups)
+            else:
+                st.warning("Please select at least one group.")
 
-    if st.button("SEARCH"):
-        if search_type == "Publications":
-            output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "publication")
-        elif search_type == "Authors":
-            output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "author")
-        elif search_type == "Abstracts":
-            output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "abstract")
-        else:
-            output_data = {}
+    else:
+        input_text = st.text_input("Search research:", key="query_input")
+        operator_val = st.radio(
+            "Search Filters",
+            ['Exact', 'Relevant'],
+            index=1,
+            key="operator_input",
+            horizontal=True,
+        )
+        search_type = st.radio(
+            "Search in:",
+            ['Publications', 'Authors', 'Abstracts'],
+            index=0,
+            key="search_type_input",
+            horizontal=True,
+        )
 
-        # Display the search results
-        show_results(output_data, search_type)
+        if st.button("SEARCH"):
+            if search_type == "Publications":
+                output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "publication")
+            elif search_type == "Authors":
+                output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "author")
+            elif search_type == "Abstracts":
+                output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "abstract")
+            else:
+                output_data = {}
 
-    st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)
+            # Display the search results
+            show_results(output_data, search_type)
+
+        st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)
+
+with open("scraper_results_with_groups.json", "r") as f:
+    groups2 = ujson.load(f)
+
+group_set = set()
+for item in groups2:
+    if "research_group" in item:
+        groups = item["research_group"]
+        for group in groups:
+            if group != "":
+                group_set.add(group.strip())
+
+group_names = list(group_set)
+
+def show_results_groups(grupos):
+    aa = 0
+    N_cards_per_row = 3
+    cols = st.columns(N_cards_per_row, gap="large")
+    total = []
+    nomes = []
+    for group in grupos:
+        for pub in groups2:
+            if "research_group" in pub and group in pub["research_group"]:
+                if pub['name'] not in nomes:
+                    nomes.append(pub['name'])
+
+                    total.append(pub)
+
+    #if len(total) < 40:
+    #    st.warning("This group does not have at least 40 publications.")
+    #    return
+
+    st.info(f"Showing {len(total)} results from {len(grupos)} groups")
+
+    N_cards_per_row = 3
+    for n_row, group in enumerate(total):
+        i = n_row % N_cards_per_row
+        if i == 0:
+            st.write("---")
+            cols = st.columns(N_cards_per_row, gap="large")
+
+        with cols[n_row % N_cards_per_row]:
+            gr = ""
+            st.caption(f"{total[n_row]['date']}")
+            st.markdown(f"**{total[n_row]['cu_author'].strip()}**")
+            for g in group['research_group']:
+                if gr != "":
+                    gr += ", " + g
+                else:
+                    gr = g
+            st.caption(f"{gr}")
+            st.markdown(f"*{total[n_row]['name'].strip()}*")
+
+        aa += 1
+
+    if aa == 0:
+        st.info("No results found. Please try again.")
+    else:
+        st.info(f"Showing {len(total)} results from {len(grupos)} groups")
+
 
 
 # Classifica os resultados pelo score do cosseno.
