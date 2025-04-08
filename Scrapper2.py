@@ -234,7 +234,7 @@ def get_groups():
 
 #get_groups()
 
-def adicionar_pdf_links():
+def adicionar_pdf_links(): #adicionar links dos pdfs nos resultados das pesquisas (odemos usar para isso, ou entao só colocar num grupo específico
     base_url = "https://pureportal.coventry.ac.uk"
     webOpt = webdriver.ChromeOptions()
     webOpt.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -281,7 +281,9 @@ def adicionar_pdf_links():
 #adicionar_pdf_links()
 
 
-#----------------------DESCARREGAR PDF------------------------------------------------------------------------
+
+#--
+#Descarregar pdfs da area LIB Mathematics Support Centre
 import os
 import json
 import time
@@ -290,6 +292,145 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+
+
+def configurar_navegador():
+    chrome_options = Options()
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+    temp_dir = os.path.abspath("temp_downloads")
+    os.makedirs(temp_dir, exist_ok=True)
+
+    prefs = {
+        "download.default_directory": temp_dir,
+        "download.prompt_for_download": False,
+        "plugins.always_open_pdf_externally": True
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
+
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    return driver, temp_dir
+
+
+def sanitize_filename(filename, max_length=100):
+    invalid_chars = '<>:"/\\|?*'
+    filename = ''.join(char if char not in invalid_chars else '_' for char in filename)
+    return filename[:max_length].strip()
+
+
+def descarregar_pdfs_LIB():
+    with open("scraper_results_groups_links.json", "r", encoding="utf-8") as f:
+        publicacoes = json.load(f)
+
+    driver, temp_dir = configurar_navegador()
+    pasta_destino = "pdfs_LIBMathematicsSupportCentre"
+    os.makedirs(pasta_destino, exist_ok=True)
+
+    grupo_alvo = "LIB Mathematics Support Centre"
+    count = 0
+
+    for pub in publicacoes:
+        grupos = pub.get("research_group", [])
+        pdf_url = pub.get("link")
+        titulo = pub.get("name", "sem_titulo")
+
+        # Verifica se o grupo alvo está na lista de grupos da publicação
+        if grupo_alvo not in grupos or not pdf_url:
+            continue
+
+        titulo_sanitizado = sanitize_filename(titulo) + ".pdf"
+        caminho_final = os.path.join(pasta_destino, titulo_sanitizado)
+
+        if os.path.exists(caminho_final):
+            print(f"[↪] Já existe: {titulo_sanitizado}")
+            continue
+
+        print(f"\n[📥] A baixar a publicação {count + 1} do {grupo_alvo}: {titulo}")
+
+        try:
+            # Limpa a pasta temporária
+            for f in os.listdir(temp_dir):
+                try:
+                    os.remove(os.path.join(temp_dir, f))
+                except:
+                    pass
+
+            # Acessa a URL
+            driver.get(pdf_url)
+            time.sleep(8)  # Tempo para download
+
+            # Verifica se o download ocorreu
+            downloaded_files = []
+            start_time = time.time()
+            while time.time() - start_time < 30:
+                downloaded_files = [f for f in os.listdir(temp_dir) if f.endswith('.pdf')]
+                if downloaded_files:
+                    break
+                time.sleep(1)
+
+            if downloaded_files:
+                arquivo_baixado = os.path.join(temp_dir, downloaded_files[0])
+
+                try:
+                    shutil.move(arquivo_baixado, caminho_final)
+                    print(f"[✔] Salvo como: {titulo_sanitizado}")
+                    count += 1
+                except Exception as e:
+                    # Tenta com nome mais curto se falhar
+                    titulo_curto = sanitize_filename(titulo, 50) + ".pdf"
+                    caminho_curto = os.path.join(pasta_destino, titulo_curto)
+                    try:
+                        shutil.move(arquivo_baixado, caminho_curto)
+                        print(f"[✔] Salvo (nome curto): {titulo_curto}")
+                        count += 1
+                    except Exception as e2:
+                        print(f"[❌] Falha ao mover arquivo: {str(e2)}")
+            else:
+                print(f"[⚠] PDF não baixado: {pdf_url}")
+
+        except Exception as e:
+            print(f"[❌] Erro ao processar {titulo}: {str(e)}")
+
+    driver.quit()
+    try:
+        shutil.rmtree(temp_dir)
+    except:
+        pass
+
+    print(f"\n[✅] Processo concluído! {count} PDFs do {grupo_alvo} foram baixados.")
+
+
+descarregar_pdfs_LIB()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#----------------------DESCARREGAR PDF, se quisesse descarregar todos para as suas pastas respetivas------------------------------------------------------------------------
+'''
+import shutil
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 
 
 def configurar_navegador():
@@ -399,7 +540,16 @@ def descarregar_pdfs():
     print("\n[✅] Processo concluído!")
 
 
-descarregar_pdfs()
+descarregar_pdfs()'''
+
+
+
+
+
+
+
+
+
 
 """ #codigo que o chat deu e funcionou a ir buscar as informações das publicações
 def initCrawlerScraper(seed: str, max_profiles=500):
