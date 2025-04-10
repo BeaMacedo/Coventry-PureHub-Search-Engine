@@ -26,21 +26,21 @@ with open('author_list_stemmed.json', 'r') as f:
     author_list_first_stem = ujson.load(f)
 with open('author_indexed_dictionary.json', 'r') as f:
     author_index = ujson.load(f)
-
-
-
-
 with open('publication_abstract_list_stemmed_abstract.json', 'r') as f:
     pub_abstract_list_first_stem = ujson.load(f)
 with open('publication_indexed_dictionary_abstract.json', 'r') as f:
     pub_abstract_index = ujson.load(f)
 
 
-with open("pdf_list_stemmed.json", "r") as f:
-    pdf_list_first_stem = ujson.load(f)
-
-with open("pdfs_indexed_dictionary.json", "r") as f:
-    pub_index = ujson.load(f)
+#with open("pdf_list_stemmed.json", "r") as f:
+#    pdf_list_first_stem = ujson.load(f)
+#with open("pdfs_indexed_dictionary.json", "r") as f:
+#    pub_index = ujson.load(f)
+# Carregar os índices específicos para o grupo LIB
+with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
+    lib_index = ujson.load(f)
+with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
+    lib_texts = ujson.load(f)
 
 
 with open('author_names.json', 'r') as f:
@@ -55,6 +55,9 @@ with open('pub_date.json', 'r') as f:
     pub_date = ujson.load(f)
 with open('pub_abstract.json', 'r') as f:
     pub_abstract = ujson.load(f)
+
+with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
+    pub_group_links = ujson.load(f)
 
 
 
@@ -187,19 +190,6 @@ def search_data(input_text, operator_val, search_type): #função de procura
 
 
 def search_LIB_data(input_text, operator_val):
-    # Carregar os índices específicos para o grupo LIB
-    with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
-        lib_index = ujson.load(f)
-
-    with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
-        lib_texts = ujson.load(f)
-
-    # Carregar os dados completos para exibição
-    with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
-        publicacoes = ujson.load(f)
-
-    # Filtrar apenas publicações do grupo LIB
-    lib_publications = [pub for pub in publicacoes if "LIB Mathematics Support Centre" in pub.get("research_group", [])]
 
     output_data = {}
 
@@ -336,18 +326,13 @@ def app():  # interface Streamlit
 
 def show_LIB_results(results):
     # Carregar os dados completos
-    with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
-        publicacoes = ujson.load(f)
-
-    # Filtrar apenas publicações do grupo LIB
-    lib_publications = [pub for pub in publicacoes if "LIB Mathematics Support Centre" in pub.get("research_group", [])]
 
     if not results:
         st.warning("No results found.")
         return
 
     for doc_id, score in results:
-        pub = lib_publications[doc_id]
+        pub = pub_group_links[doc_id]
 
         st.caption(f"{pub.get('date', '').strip()}")
         st.markdown(f"**{pub.get('cu_author', '').strip()}**")
