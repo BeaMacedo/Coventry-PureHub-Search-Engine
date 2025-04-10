@@ -17,7 +17,7 @@ pubURL = []
 pubCUAuthor = []
 pubDate = []
 pubAbstract = []
-#pubGroups = []  #FAZER?
+
 
 data_dict = ujson.loads(scraper_results) ## Converte JSON (string) para um dicionário, onde cada item deste dicionario contem as informações sobre uma publicação
 data_dict_abs = ujson.loads(scraper_results_abs) #cada item deste dicionario contem as informações sobre uma publicação
@@ -241,100 +241,3 @@ with open('publication_indexed_dictionary_abstract.json', 'w') as f: #indice inv
     ujson.dump(data_dict, f)
 
 
-
-#--------------------Índice invertido pdfs-------------------------------
-import os
-import re
-import PyPDF2
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
-import ujson
-
-# Baixar stopwords e punkt do NLTK, caso não tenha feito antes
-import nltk
-
-nltk.download('stopwords')
-nltk.download('punkt')
-
-# Definir o stemmer e as stopwords
-stop_words = set(stopwords.words('english'))
-stemmer = PorterStemmer()
-
-
-def limpar_texto(texto):
-    # Remover todos os caracteres não alfabéticos e deixar apenas letras e espaços
-    texto = re.sub(r'[^a-zA-Z\s]', '', texto)
-
-    # Converter o texto para minúsculas
-    texto = texto.lower()
-
-    # Tokenizar o texto em palavras
-    palavras = word_tokenize(texto)
-
-    # Remover stopwords e aplicar stemming
-    palavras_limpa = [stemmer.stem(palavra) for palavra in palavras if palavra not in stop_words]
-
-    # Retornar as palavras limpas como uma string
-    return ' '.join(palavras_limpa)
-
-
-def extrair_texto_pdf(caminho_pdf):
-    try:
-        with open(caminho_pdf, 'rb') as f:
-            reader = PyPDF2.PdfReader(f)
-            texto = ""
-            for pagina in range(len(reader.pages)):
-                texto += reader.pages[pagina].extract_text()
-            return texto
-    except Exception as e:
-        print(f"Erro ao processar o PDF {caminho_pdf}: {e}")
-        return ""
-
-
-def processar_pdfs():
-    # Diretório onde os PDFs estão localizados
-    pasta_pdfs = "pdfs_LIBMathematicsSupportCentre"
-
-    # Lista para armazenar textos extraídos e os índices dos PDFs
-    textos_limpos = []
-    index_documentos = []
-
-    # Percorrer todos os PDFs na pasta
-    for nome_arquivo in os.listdir(pasta_pdfs):
-        caminho_pdf = os.path.join(pasta_pdfs, nome_arquivo)
-
-        if nome_arquivo.endswith(".pdf"):
-            print(f"Processando PDF: {nome_arquivo}")
-
-            # Extrair o texto do PDF
-            texto_extraido = extrair_texto_pdf(caminho_pdf)
-
-            # Limpar o texto extraído
-            texto_limpo = limpar_texto(texto_extraido)
-
-            if texto_limpo:
-                textos_limpos.append(texto_limpo)
-                index_documentos.append(nome_arquivo)  # Guardar o nome do arquivo como identificador
-
-    # Criar o índice invertido
-    data_dict = {}
-    for i, texto in enumerate(textos_limpos):
-        for palavra in texto.split():
-            if palavra not in data_dict:
-                data_dict[palavra] = [i]
-            else:
-                data_dict[palavra].append(i)
-
-    # Salvar o índice invertido e os textos limpos
-    with open('pdf_indexado.json', 'w', encoding='utf-8') as f:
-        ujson.dump(data_dict, f, indent=2)
-
-    with open('pdf_textos_limpos.json', 'w', encoding='utf-8') as f:
-        ujson.dump(textos_limpos, f, indent=2)
-
-    print(f"\n[✅] Processamento completo. {len(textos_limpos)} PDFs processados e indexados.")
-
-
-# Chamar a função para processar os PDFs
-processar_pdfs()

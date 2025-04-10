@@ -35,6 +35,14 @@ with open('publication_abstract_list_stemmed_abstract.json', 'r') as f:
 with open('publication_indexed_dictionary_abstract.json', 'r') as f:
     pub_abstract_index = ujson.load(f)
 
+
+with open("pdf_list_stemmed.json", "r") as f:
+    pub_list_first_stem = ujson.load(f)
+
+with open("pdfs_indexed_dictionary.json", "r") as f:
+    pub_index = ujson.load(f)
+
+
 with open('author_names.json', 'r') as f:
     author_name = ujson.load(f)
 with open('pub_name.json', 'r') as f:
@@ -178,26 +186,112 @@ def search_data(input_text, operator_val, search_type): #função de procura
     return output_data
 
 
+def search_LIB_data(input_text, operator_val):
+    # Carregar os índices específicos para o grupo LIB
+    with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
+        lib_index = ujson.load(f)
+
+    with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
+        lib_texts = ujson.load(f)
+
+    # Carregar os dados completos para exibição
+    with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
+        publicacoes = ujson.load(f)
+
+    # Filtrar apenas publicações do grupo LIB
+    lib_publications = [pub for pub in publicacoes if "LIB Mathematics Support Centre" in pub.get("research_group", [])]
+
+    output_data = {}
+
+    if operator_val == 2:  # Operador OR
+        input_text = input_text.lower().split()
+        pointer = []
+
+        for token in input_text:
+            if len(input_text) < 2:
+                st.warning("Please enter at least 2 words to apply the operator.")
+                break
+
+            stem_temp = ""
+            word_list = word_tokenize(token)
+
+            for x in word_list:
+                if x not in stop_words:
+                    stem_temp += stemmer.stem(x) + " "
+
+            stem_word = stem_temp.strip()
+
+            if lib_index.get(stem_word):
+                pointer.extend(lib_index[stem_word])
+
+        if len(pointer) == 0:
+            return {}
+        else:
+            # Remover duplicatas e manter a ordem
+            pointer = list(dict.fromkeys(pointer))
+
+            # Calcular similaridade
+            temp_file = [lib_texts[j] for j in pointer]
+            temp_file = tfidf.fit_transform(temp_file)
+            cosine_output = cosine_similarity(temp_file, tfidf.transform([stem_temp]))
+
+            for idx, j in enumerate(pointer):
+                output_data[j] = cosine_output[idx][0]
+
+    else:  # Operador AND
+        input_text = input_text.lower().split()
+        common_docs = None
+
+        for token in input_text:
+            if len(input_text) < 2:
+                st.warning("Please enter at least 2 words to apply the operator.")
+                break
+
+            stem_temp = ""
+            word_list = word_tokenize(token)
+
+            for x in word_list:
+                if x not in stop_words:
+                    stem_temp += stemmer.stem(x) + " "
+
+            stem_word = stem_temp.strip()
+
+            if lib_index.get(stem_word):
+                current_docs = set(lib_index[stem_word])
+                if common_docs is None:
+                    common_docs = current_docs
+                else:
+                    common_docs = common_docs.intersection(current_docs)
+            else:
+                common_docs = set()
+                break
+
+        if not common_docs:
+            return {}
+        else:
+            pointer = list(common_docs)
+            temp_file = [lib_texts[j] for j in pointer]
+            temp_file = tfidf.fit_transform(temp_file)
+            cosine_output = cosine_similarity(temp_file, tfidf.transform([stem_temp]))
+
+            for idx, j in enumerate(pointer):
+                output_data[j] = cosine_output[idx][0]
+
+    # Ordenar resultados por similaridade
+    sorted_output = sorted(output_data.items(), key=lambda x: x[1], reverse=True)
+
+    return sorted_output
+
+
+
 def app(): #interface Streamlit
 
         # Load the image and display it
     image = Image.open('cire.png')
     st.image(image)
 
-    # Add a text description
-    st.markdown("<p style='text-align: center;'> Uncover the brilliance: Explore profiles, groundbreaking work, and cutting-edge research by the exceptional minds of Coventry University.</p>", unsafe_allow_html=True)
-
-    # Opção para pesquisa por grupo
-    st.write("### 🔍 Explore by Research Group")
-    group_search = st.checkbox("Search by Research Group")
-
-    if group_search:
-        selected_groups = st.multiselect("Select one or more research groups:", group_names)
-        if st.button("SEARCH GROUPS"):
-            if selected_groups:
-                show_results_groups(selected_groups)
-            else:
-                st.warning("Please select at least one group.")
+    if st.button("SEARCH LIB Mathematics Support Centre"):
+        show_results_groups()
 
     else:
         input_text = st.text_input("Search research:", key="query_input")
@@ -231,66 +325,33 @@ def app(): #interface Streamlit
 
         st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)
 
-with open("scraper_results_with_groups.json", "r") as f:
-    groups2 = ujson.load(f)
-
-group_set = set()
-for item in groups2:
-    if "research_group" in item:
-        groups = item["research_group"]
-        for group in groups:
-            if group != "":
-                group_set.add(group.strip())
-
-group_names = list(group_set)
-
-def show_results_groups(grupos):
-    aa = 0
-    N_cards_per_row = 3
-    cols = st.columns(N_cards_per_row, gap="large")
-    total = []
-    nomes = []
-    for group in grupos:
-        for pub in groups2:
-            if "research_group" in pub and group in pub["research_group"]:
-                if pub['name'] not in nomes:
-                    nomes.append(pub['name'])
-
-                    total.append(pub)
-
-    #if len(total) < 40:
-    #    st.warning("This group does not have at least 40 publications.")
-    #    return
-
-    st.info(f"Showing {len(total)} results from {len(grupos)} groups")
-
-    N_cards_per_row = 3
-    for n_row, group in enumerate(total):
-        i = n_row % N_cards_per_row
-        if i == 0:
-            st.write("---")
-            cols = st.columns(N_cards_per_row, gap="large")
-
-        with cols[n_row % N_cards_per_row]:
-            gr = ""
-            st.caption(f"{total[n_row]['date']}")
-            st.markdown(f"**{total[n_row]['cu_author'].strip()}**")
-            for g in group['research_group']:
-                if gr != "":
-                    gr += ", " + g
-                else:
-                    gr = g
-            st.caption(f"{gr}")
-            st.markdown(f"*{total[n_row]['name'].strip()}*")
-
-        aa += 1
-
-    if aa == 0:
-        st.info("No results found. Please try again.")
-    else:
-        st.info(f"Showing {len(total)} results from {len(grupos)} groups")
 
 
+def show_LIB_results(results):
+    # Carregar os dados completos
+    with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
+        publicacoes = ujson.load(f)
+
+    # Filtrar apenas publicações do grupo LIB
+    lib_publications = [pub for pub in publicacoes if "LIB Mathematics Support Centre" in pub.get("research_group", [])]
+
+    if not results:
+        st.warning("No results found.")
+        return
+
+    for doc_id, score in results:
+        pub = lib_publications[doc_id]
+
+        st.caption(f"{pub.get('date', '').strip()}")
+        st.markdown(f"**{pub.get('cu_author', '').strip()}**")
+        st.markdown(f"*{pub.get('name', '').strip()}*")
+        st.markdown(f"**[View publication]({pub.get('pub_url', '')})**")
+
+        # Se tiver link para PDF
+        if pub.get('link'):
+            st.markdown(f"**[Download PDF]({pub.get('link', '')})**")
+
+        st.markdown("---")  # Separador entre resultados
 
 # Classifica os resultados pelo score do cosseno.
 

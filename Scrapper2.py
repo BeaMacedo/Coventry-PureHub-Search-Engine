@@ -330,8 +330,9 @@ def descarregar_pdfs_LIB():
 
     grupo_alvo = "LIB Mathematics Support Centre"
     count = 0
+    dic_indices_pdfs = {}  # Mapeia {count: índice_original}
 
-    for pub in publicacoes:
+    for idx, pub in enumerate(publicacoes):  # Adicionamos enumerate para obter o índice original
         grupos = pub.get("research_group", [])
         pdf_url = pub.get("link")
         titulo = pub.get("name", "sem_titulo")
@@ -376,6 +377,7 @@ def descarregar_pdfs_LIB():
                 try:
                     shutil.move(arquivo_baixado, caminho_final)
                     print(f"[✔] Salvo como: {titulo_sanitizado}")
+                    dic_indices_pdfs[count] = idx  # Mapeia o count atual para o índice original
                     count += 1
                 except Exception as e:
                     # Tenta com nome mais curto se falhar
@@ -384,6 +386,7 @@ def descarregar_pdfs_LIB():
                     try:
                         shutil.move(arquivo_baixado, caminho_curto)
                         print(f"[✔] Salvo (nome curto): {titulo_curto}")
+                        dic_indices_pdfs[count] = idx  # Mapeia também para os nomes curtos
                         count += 1
                     except Exception as e2:
                         print(f"[❌] Falha ao mover arquivo: {str(e2)}")
@@ -400,11 +403,13 @@ def descarregar_pdfs_LIB():
         pass
 
     print(f"\n[✅] Processo concluído! {count} PDFs do {grupo_alvo} foram baixados.")
+    print(f"Dicionário de índices: {dic_indices_pdfs}")  # Opcional: mostra o dicionário criado
+
+    with open("dic_indices_pdfs.json", "w", encoding="utf-8") as json_file:
+        json.dump(dic_indices_pdfs, json_file, ensure_ascii=False, indent=4)
 
 
-descarregar_pdfs_LIB()
-
-
+#descarregar_pdfs_LIB()
 
 
 
