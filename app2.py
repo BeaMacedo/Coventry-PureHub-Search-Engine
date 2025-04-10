@@ -37,7 +37,7 @@ with open('publication_indexed_dictionary_abstract.json', 'r') as f:
 
 
 with open("pdf_list_stemmed.json", "r") as f:
-    pub_list_first_stem = ujson.load(f)
+    pdf_list_first_stem = ujson.load(f)
 
 with open("pdfs_indexed_dictionary.json", "r") as f:
     pub_index = ujson.load(f)
@@ -284,15 +284,22 @@ def search_LIB_data(input_text, operator_val):
 
 
 
-def app(): #interface Streamlit
-
-        # Load the image and display it
+def app():  # interface Streamlit
+    # Load the image and display it
     image = Image.open('cire.png')
     st.image(image)
 
-    if st.button("SEARCH LIB Mathematics Support Centre"):
-        show_results_groups()
+    st.title("LIB Mathematics Support Centre Publications Search")
 
+    # Campo e opções da primeira seção (LIB)
+    search_input = st.text_input("Enter your search terms:")
+    operator = st.radio("Search operator:", ["AND", "OR"], index=0)
+    search_button = st.button("Search")
+
+    if search_button and search_input:
+        operator_val = 1 if operator == "AND" else 2
+        results = search_LIB_data(search_input, operator_val)
+        show_LIB_results(results)
     else:
         input_text = st.text_input("Search research:", key="query_input")
         operator_val = st.radio(
