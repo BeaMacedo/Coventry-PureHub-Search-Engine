@@ -78,14 +78,16 @@ def search_data(input_text, operator_val, search_type): #função de procura
             temp_file = []
             word_list = word_tokenize(token) #ex. machine-learning!, o tokenize faz ['machine','-','learning','!'] quando o split dava tudo junto
 
-            for x in word_list:
+            for x in word_list: #divide a pesquisa em palavras
                 if x not in stop_words: #remove stop words
                     stem_temp += stemmer.stem(x) + " " #aplica stemming
             stem_word_file.append(stem_temp)
+            print(stem_word_file)
             #print(stem_temp)
 
             if search_type == "publication" and pub_index.get(stem_word_file[0].strip()): #Se for "publication", pesquisa no pub_index
                 pointer = pub_index.get(stem_word_file[0].strip())
+                print(pointer)
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
                 pointer = author_index.get(stem_word_file[0].strip())
             elif search_type == "abstract" and pub_abstract_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
@@ -96,9 +98,9 @@ def search_data(input_text, operator_val, search_type): #função de procura
             if len(pointer) == 0: #se nao encontrou nada no indice, sem resultados
                 output_data = {}
             else:
-                for j in pointer:
+                for j in pointer: #indice de cada documento que contem a palavra
                     if search_type == "publication":
-                        temp_file.append(pub_list_first_stem[j])
+                        temp_file.append(pub_list_first_stem[j]) #testo do ficheiro publication_list_stemmed.json que é o texto do documento sem stop words e com stem
                     elif search_type == "author":
                         temp_file.append(author_list_first_stem[j])
                     elif search_type == "abstract":
@@ -107,8 +109,8 @@ def search_data(input_text, operator_val, search_type): #função de procura
                 temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
 
-                print(pointer)
-                for j in pointer: #Salva os resultados ordenados pela similaridade
+                #print(pointer)
+                for j in pointer:
                     output_data[j] = cosine_output[pointer.index(j)]
                 print(output_data)
 
@@ -350,9 +352,9 @@ def show_LIB_results(results):
 def show_results(output_data, search_type):
     aa = 0
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True) #Ordena os resultados pela pontuação de similaridade
-
+    #print(f"rank is {rank_sorting}")
     # Show the total number of research results
-    st.info(f"Showing results for: {len(rank_sorting)}")
+    st.info(f"Showing results for: {len(rank_sorting)}") #mostra resultados pela ordem decrescente da pontuação
 
     # Show the cards
     N_cards_per_row = 3
