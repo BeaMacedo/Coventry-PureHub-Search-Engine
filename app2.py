@@ -55,6 +55,7 @@ with open('pub_date.json', 'r') as f:
     pub_date = ujson.load(f)
 with open('pub_abstract.json', 'r') as f:
     pub_abstract = ujson.load(f)
+###### ACRESCENTAR DOS LINKS E DOS RESEARCH GROUPS
 
 with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
     pub_group_links = ujson.load(f)
@@ -190,11 +191,24 @@ def search_data(input_text, operator_val, search_type): #função de procura
 
     return output_data
 
+#-----------------para indices pdf do grupo de pesquisa LIB
+# Função para carregar os índices mapeados de dic_indices_pdfs.json
+def load_pdf_index_mapping():
+    with open('dic_indices_pdfs.json', 'r', encoding='utf-8') as f:
+        map_pdf_to_lib = ujson.load(f)
+    # Inverter o mapeamento: de índices globais para índices dos PDFs
+    map_lib_to_pdf = {v: int(k) for k, v in map_pdf_to_lib.items()}
+    return map_lib_to_pdf
 
+# Função de pesquisa
 def search_LIB_data(input_text, operator_val):
 
     output_data = {}
 
+    # Carregar o mapeamento de índices (apenas uma vez)
+    map_lib_to_pdf = load_pdf_index_mapping()
+
+    # Para o operador OR (operator_val == 2)
     if operator_val == 2:  # Operador OR
         input_text = input_text.lower().split()
         pointer = []
@@ -212,34 +226,41 @@ def search_LIB_data(input_text, operator_val):
             for x in word_list:
                 if x not in stop_words:
                     stem_temp += stemmer.stem(x) + " "
-            stem_word_file.append(stem_temp)    #palavras pre processadas que vem do input do utilizador
+            stem_word_file.append(stem_temp)  # Palavras pré-processadas do input
 
+            # Verificar se existe o índice para o token processado
             if lib_index.get(stem_word_file[0].strip()):
-                pointer = lib_index.get(stem_word_file[0].strip()) #da 18
+                pointer = lib_index.get(stem_word_file[0].strip())
 
         if len(pointer) == 0:
             return {}
         else:
+            # Usar o mapeamento de índice para PDFs
             for j in pointer:
-                temp_file.append(lib_texts[j]) #vai tentar vir ao indice 18 e nao existe, pq trocamos o indice para ir de acordo com o indice dos documentos noutro ficheiro
+                pdf_index = map_lib_to_pdf.get(j)
+                if pdf_index is not None:
+                    temp_file.append(lib_texts[pdf_index])  # Pega o texto do PDF correspondente
 
             temp_file = tfidf.fit_transform(temp_file)
             cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
+            # Atribuir os resultados ao output_data
             for j in pointer:
-                output_data[j] = cosine_output[pointer.index(j)]
+                pdf_index = map_lib_to_pdf.get(j)
+                if pdf_index is not None:
+                    output_data[j] = cosine_output[pointer.index(j)]
 
-    else:  # Relevant operator (OR)
+    # Para o operador AND (caso contrário)
+    else:  # Operador AND
         input_text = input_text.lower().split()
         pointer = []
         match_word = []
+
         for token in input_text:
             if len(input_text) < 2:
                 st.warning("Please enter at least 2 words to apply the operator.")
                 break
-            # if len(token) <= 3:
-            #     st.warning("Please enter more than 4 characters.")
-            #     break
+
             temp_file = []
             set2 = set()
             stem_word_file = []
@@ -250,10 +271,12 @@ def search_LIB_data(input_text, operator_val):
                     stem_temp += stemmer.stem(x) + " "
             stem_word_file.append(stem_temp)
 
+            # Verificar se existe o índice para o token processado
             if lib_index.get(stem_word_file[0].strip()):
                 set1 = set(lib_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
 
+            # Atualizar a lista match_word para documentos que atendem a todos os critérios
             if match_word == []:
                 match_word = list({z for z in pointer if z in set2 or (set2.add(z) or False)})
             else:
@@ -266,35 +289,41 @@ def search_LIB_data(input_text, operator_val):
             if len(match_word) == 0:
                 output_data = {}
             else:
+                # Usar o mapeamento de índice para PDFs
                 for j in list(match_word):
-                        temp_file.append(lib_texts[j])
+                    pdf_index = map_lib_to_pdf.get(j)
+                    if pdf_index is not None:
+                        temp_file.append(lib_texts[pdf_index])
 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
+                # Atribuir os resultados ao output_data
                 for j in list(match_word):
-                    output_data[j] = cosine_output[list(match_word).index(j)]
+                    pdf_index = map_lib_to_pdf.get(j)
+                    if pdf_index is not None:
+                        output_data[j] = cosine_output[list(match_word).index(j)]
+
         else:
             if len(pointer) == 0:
                 output_data = {}
             else:
+                # Usar o mapeamento de índice para PDFs
                 for j in pointer:
-                    temp_file.append(lib_texts[j])
+                    pdf_index = map_lib_to_pdf.get(j)
+                    if pdf_index is not None:
+                        temp_file.append(lib_texts[pdf_index])
 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
+                # Atribuir os resultados ao output_data
                 for j in pointer:
-                    output_data[j] = cosine_output[pointer.index(j)]
+                    pdf_index = map_lib_to_pdf.get(j)
+                    if pdf_index is not None:
+                        output_data[j] = cosine_output[pointer.index(j)]
 
     return output_data
-
-
-
-
-
-
-
 
 
 
@@ -349,28 +378,39 @@ def app():  # interface Streamlit
 
 
 
-def show_LIB_results(results):
+def show_LIB_results(output_data):
     # Carregar os dados completos
+    aa = 0 #contador de resultados
+    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
 
-    if not results:
-        st.warning("No results found.")
-        return
+    # Show the total number of research results
+    st.info(f"Showing results for: {len(rank_sorting)}")
 
-    for doc_id, score in results:
-        pub = pub_group_links[doc_id]
+    # Show the cards
+    N_cards_per_row = 3
+    for n_row, (id_val, ranking) in enumerate(rank_sorting): #id_val: índice do documento e ranking: score de similaridade
+        i = n_row % N_cards_per_row
+        if i == 0:
+            st.write("---")
+            cols = st.columns(N_cards_per_row, gap="large")
+        # Draw the card
+        with cols[n_row % N_cards_per_row]:
+            st.caption(f"{pub_date[id_val].strip()}")
+            st.markdown(f"**{pub_cu_author[id_val].strip()}**")
+            st.markdown(f"*{pub_name[id_val].strip()}*")
+            st.markdown(f"**{pub_url[id_val]}**")
+            # Se tiver link para PDF
+            pub = pub_group_links[id_val]
+            if pub.get('link'):
+                st.markdown(f"**[Download PDF]({pub.get('link', '')})**")
 
-        st.caption(f"{pub.get('date', '').strip()}")
-        st.markdown(f"**{pub.get('cu_author', '').strip()}**")
-        st.markdown(f"*{pub.get('name', '').strip()}*")
-        st.markdown(f"**[View publication]({pub.get('pub_url', '')})**")
+        aa += 1
 
-        # Se tiver link para PDF
-        if pub.get('link'):
-            st.markdown(f"**[Download PDF]({pub.get('link', '')})**")
+    if aa == 0:
+        st.info("No results found. Please try again.")
+    else:
+        st.info(f"Results shown for: {aa}")
 
-        st.markdown("---")  # Separador entre resultados
-
-# Classifica os resultados pelo score do cosseno.
 
 def show_results(output_data, search_type):
     aa = 0
