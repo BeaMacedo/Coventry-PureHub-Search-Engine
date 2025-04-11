@@ -117,7 +117,7 @@ def search_data(input_text, operator_val, search_type): #função de procura
     else:  # operador and
         input_text = input_text.lower().split()
         pointer = [] #documentos encontrados
-        match_word = [] #documentos que atendem aos critérios de todas as palavras da pesquisa
+        match_word = [] # Apenas os documentos que contêm TODAS as palavras (interseção)
         for token in input_text:
             if len(input_text) < 2:
                 st.warning("Please enter at least 2 words to apply the operator.")
@@ -136,8 +136,8 @@ def search_data(input_text, operator_val, search_type): #função de procura
             stem_word_file.append(stem_temp)
 
             if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
-                set1 = set(pub_index.get(stem_word_file[0].strip())) #Recupera os documentos para a palavra
-                pointer.extend(list(set1)) #Adiciona os documentos encontrados ao pointer
+                set1 = set(pub_index.get(stem_word_file[0].strip())) #set 1 é o conjunto dos indices dos documentos onde a palavra processada aparece
+                pointer.extend(list(set1)) #Adiciona o conjunto set1 ao pointer
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
                 set1 = set(author_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
@@ -147,19 +147,19 @@ def search_data(input_text, operator_val, search_type): #função de procura
 
             if match_word == []: #se match_word estiver vazia - 1ºtoken, ela será preenchida com documentos que já aparecem em pointer
                 match_word = list({z for z in pointer if z in set2 or (set2.add(z) or False)})
-            else:
+            else: #match_word vai conter no final os documentos onde aparecem TODOS os termos de pesquisa (interseção de set1 ao longo do loop)
                 match_word.extend(list(set1))
                 match_word = list({z for z in match_word if z in set2 or (set2.add(z) or False)}) # atualização da lista para garantir que apenas os documentos que correspondem a todos os tokens sejam mantidos.
 
         if len(input_text) > 1:
-            match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)} #Depois dos tokens todos serem processados, verifica se todos os documentos em match_word estão em set2, ou seja se apenas contem documentos que apresentem todos os tokens em comum
+            match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)}
 
-            if len(match_word) == 0:
+            if len(match_word) == 0: #se nenhum documento satis faz a query
                 output_data = {}
-            else:
+            else: #se houver match, vamos calcular tf-idf e similaridade com o cos
                 for j in list(match_word):
                     if search_type == "publication":
-                        temp_file.append(pub_list_first_stem[j])
+                        temp_file.append(pub_list_first_stem[j]) #texto completo dos documentos sem stop words e com stem
                     elif search_type == "author":
                         temp_file.append(author_list_first_stem[j])
                     elif search_type == "abstract":
@@ -170,7 +170,7 @@ def search_data(input_text, operator_val, search_type): #função de procura
 
                 for j in list(match_word):
                     output_data[j] = cosine_output[list(match_word).index(j)]
-        else:
+        else:   #se a query tiver só uma palavra
             if len(pointer) == 0:
                 output_data = {}
             else:
@@ -205,74 +205,97 @@ def search_LIB_data(input_text, operator_val):
                 break
 
             stem_temp = ""
+            stem_word_file = []
+            temp_file = []
             word_list = word_tokenize(token)
 
             for x in word_list:
                 if x not in stop_words:
                     stem_temp += stemmer.stem(x) + " "
+            stem_word_file.append(stem_temp)    #palavras pre processadas que vem do input do utilizador
 
-            stem_word = stem_temp.strip()
-
-            if lib_index.get(stem_word):
-                pointer.extend(lib_index[stem_word])
+            if lib_index.get(stem_word_file[0].strip()):
+                pointer = lib_index.get(stem_word_file[0].strip()) #da 18
 
         if len(pointer) == 0:
             return {}
         else:
-            # Remover duplicatas e manter a ordem
-            pointer = list(dict.fromkeys(pointer))
+            for j in pointer:
+                temp_file.append(lib_texts[j]) #vai tentar vir ao indice 18 e nao existe, pq trocamos o indice para ir de acordo com o indice dos documentos noutro ficheiro
 
-            # Calcular similaridade
-            temp_file = [lib_texts[j] for j in pointer]
             temp_file = tfidf.fit_transform(temp_file)
-            cosine_output = cosine_similarity(temp_file, tfidf.transform([stem_temp]))
+            cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
-            for idx, j in enumerate(pointer):
-                output_data[j] = cosine_output[idx][0]
+            for j in pointer:
+                output_data[j] = cosine_output[pointer.index(j)]
 
-    else:  # Operador AND
+    else:  # Relevant operator (OR)
         input_text = input_text.lower().split()
-        common_docs = None
-
+        pointer = []
+        match_word = []
         for token in input_text:
             if len(input_text) < 2:
                 st.warning("Please enter at least 2 words to apply the operator.")
                 break
-
-            stem_temp = ""
+            # if len(token) <= 3:
+            #     st.warning("Please enter more than 4 characters.")
+            #     break
+            temp_file = []
+            set2 = set()
+            stem_word_file = []
             word_list = word_tokenize(token)
-
+            stem_temp = ""
             for x in word_list:
                 if x not in stop_words:
                     stem_temp += stemmer.stem(x) + " "
+            stem_word_file.append(stem_temp)
 
-            stem_word = stem_temp.strip()
+            if lib_index.get(stem_word_file[0].strip()):
+                set1 = set(lib_index.get(stem_word_file[0].strip()))
+                pointer.extend(list(set1))
 
-            if lib_index.get(stem_word):
-                current_docs = set(lib_index[stem_word])
-                if common_docs is None:
-                    common_docs = current_docs
-                else:
-                    common_docs = common_docs.intersection(current_docs)
+            if match_word == []:
+                match_word = list({z for z in pointer if z in set2 or (set2.add(z) or False)})
             else:
-                common_docs = set()
-                break
+                match_word.extend(list(set1))
+                match_word = list({z for z in match_word if z in set2 or (set2.add(z) or False)})
 
-        if not common_docs:
-            return {}
+        if len(input_text) > 1:
+            match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)}
+
+            if len(match_word) == 0:
+                output_data = {}
+            else:
+                for j in list(match_word):
+                        temp_file.append(lib_texts[j])
+
+                temp_file = tfidf.fit_transform(temp_file)
+                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+
+                for j in list(match_word):
+                    output_data[j] = cosine_output[list(match_word).index(j)]
         else:
-            pointer = list(common_docs)
-            temp_file = [lib_texts[j] for j in pointer]
-            temp_file = tfidf.fit_transform(temp_file)
-            cosine_output = cosine_similarity(temp_file, tfidf.transform([stem_temp]))
+            if len(pointer) == 0:
+                output_data = {}
+            else:
+                for j in pointer:
+                    temp_file.append(lib_texts[j])
 
-            for idx, j in enumerate(pointer):
-                output_data[j] = cosine_output[idx][0]
+                temp_file = tfidf.fit_transform(temp_file)
+                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
-    # Ordenar resultados por similaridade
-    sorted_output = sorted(output_data.items(), key=lambda x: x[1], reverse=True)
+                for j in pointer:
+                    output_data[j] = cosine_output[pointer.index(j)]
 
-    return sorted_output
+    return output_data
+
+
+
+
+
+
+
+
 
 
 
