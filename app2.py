@@ -239,7 +239,7 @@ def search_LIB_data(input_text, operator_val):
             for j in pointer:
                 pdf_index = map_lib_to_pdf.get(j)
                 if pdf_index is not None:
-                    temp_file.append(lib_texts[pdf_index])  # Pega o texto do PDF correspondente
+                    temp_file.append(lib_texts[pdf_index])
 
             temp_file = tfidf.fit_transform(temp_file)
             cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
@@ -326,8 +326,7 @@ def search_LIB_data(input_text, operator_val):
     return output_data
 
 
-
-
+#inicial
 def app():  # interface Streamlit
     # Load the image and display it
     image = Image.open('cire.png')
