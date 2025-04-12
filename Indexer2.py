@@ -66,10 +66,26 @@ pubName = ujson.loads(publication)
 #Downloading libraries to use its methods
 nltk.download('stopwords')
 nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
 
 #Predefined stopwords in nltk are used
 stop_words = stopwords.words('english')
 lemma = WordNetLemmatizer()
+
+'''# Função para converter POS tags para o formato WordNet
+def get_wordnet_pos(treebank_tag):
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN  # Padrão para substantivo
+'''
 stemmer = PorterStemmer()
 pub_list_first_stem = [] #nomes das publicações após tokenização, remoção de stopwords e stemming.
 pub_list_first_lemma = []
