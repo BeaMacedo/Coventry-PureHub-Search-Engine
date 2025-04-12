@@ -4,11 +4,11 @@ import ujson
 from nltk.corpus import stopwords # list of stop word 
 from nltk.tokenize import word_tokenize # To tokenize each word
 from nltk.stem import PorterStemmer # For specific rules to transform words to their stems
-
+from nltk.stem import WordNetLemmatizer
 
 with open('scraper_results.json', 'r') as doc: scraper_results=doc.read()
 with open('scraper_results_with_abstracts.json', 'r') as doc: scraper_results_abs=doc.read()
-
+with open('scraper_results_groups_links.json', 'r') as doc: scraper_results_groups_links=doc.read()
 
 # Initialize empty lists to store publication name, URL, author, and date
     
@@ -17,26 +17,32 @@ pubURL = []
 pubCUAuthor = []
 pubDate = []
 pubAbstract = []
+pubGroup = []
+pubLinkPDF = []
 
 
 data_dict = ujson.loads(scraper_results) ## Converte JSON (string) para um dicionário, onde cada item deste dicionario contem as informações sobre uma publicação
 data_dict_abs = ujson.loads(scraper_results_abs) #cada item deste dicionario contem as informações sobre uma publicação
+data_dict_gr_lin = ujson.loads(scraper_results_groups_links) #cada item deste dicionario contem as informações sobre uma publicação
 
 
 # Get the length of the data_dict (number of publications)
 array_length = len(data_dict)
 array_abs_length = len(data_dict_abs)
-print(f"length of data dict: {array_length} and data dict abs: {array_abs_length}")
+array_gr_lin_length = len(data_dict_gr_lin)
+print(f"length of data dict: {array_length} and data dict abs: {array_abs_length} and data dict gr lin: {array_gr_lin_length}")
 
 
 #Seperate name, url, date, author in different file
 i = 0
-for item in data_dict: #nao faz mais sentido só ir BUSCAR TUDO ao scraper_results_abs?????????????
+for item in data_dict:
     pubName.append(item["name"])
     pubURL.append(item["pub_url"])
     pubCUAuthor.append(item["cu_author"])
     pubDate.append(item["date"])
     pubAbstract.append(data_dict_abs[i].get("abstract", "")) #se "abstract" não existir, vai pôr uma string vazia ""
+    pubGroup.append(data_dict_gr_lin[i].get("research_group", ""))
+    pubLinkPDF.append(data_dict_gr_lin[i].get("link", ""))
     i+=1
 
 with open('pub_name.json', 'w') as f:ujson.dump(pubName, f)
@@ -44,9 +50,9 @@ with open('pub_url.json', 'w') as f:ujson.dump(pubURL, f)
 with open('pub_cu_author.json', 'w') as f:ujson.dump(pubCUAuthor, f)
 with open('pub_date.json', 'w') as f: ujson.dump(pubDate, f)
 with open('pub_abstract.json', 'w') as f: ujson.dump(pubAbstract, f)
+with open('pub_groups.json', 'w') as f: ujson.dump(pubGroup, f)
+with open('pub_linksPDF.json', 'w') as f: ujson.dump(pubLinkPDF, f)
 #cada um destes ficheiros json armazenam todos os nomes das publicações/url/autor/data
-
-
 
 
 
@@ -63,8 +69,10 @@ nltk.download('punkt')
 
 #Predefined stopwords in nltk are used
 stop_words = stopwords.words('english')
+lemma = WordNetLemmatizer()
 stemmer = PorterStemmer()
 pub_list_first_stem = [] #nomes das publicações após tokenização, remoção de stopwords e stemming.
+pub_list_first_lemma = []
 pub_list = [] # Mantém os nomes das publicações originais
 pub_list_wo_sc = [] #Contém nomes das publicações sem caracteres especiais
 print(len(pubName))
@@ -74,10 +82,13 @@ for file in pubName:
     #Splitting strings to tokens(words)
     words = word_tokenize(file) # Divide o nome da publicação em palavras
     stem_word = ""
+    lemma_word = ""
     for i in words:
         if i.lower() not in stop_words: # Remove stopwords
             stem_word += stemmer.stem(i) + " " # # Aplica stemming
+            lemma_word += lemma.lemmatize(i) + " "
     pub_list_first_stem.append(stem_word)
+    pub_list_first_lemma.append(lemma_word)
     pub_list.append(file)
 
 #Removing all below characters (dos nomes das publicações)
@@ -97,30 +108,45 @@ for file in pub_list: #vai a cada nome original das publicações
 #Stemming Process
 #aplica o stemming e remove stopwords novamente, após a remoção dos caracteres especiais
 pub_list_stem_wo_sw = [] #nomes das publicações sem caracteres especiais e com stemming e sem stop words
+pub_list_lemma_wo_sw = []
+
 for name in pub_list_wo_sc: #vai à lista com os nomes das publicações sem caracteres especiais
     words = word_tokenize(name)
     stem_word = ""
+    lemma_word = ""
     for a in words:
         if a.lower() not in stop_words:
             stem_word += stemmer.stem(a) + ' '
+            lemma_word += lemma.lemmatize(a) + ' '
     pub_list_stem_wo_sw.append(stem_word.lower())
+    pub_list_lemma_wo_sw.append(lemma_word.lower())
 
-data_dict = {} #Inverted Index holder
+data_dict_stemm = {} #Inverted Index holder
 
 # Indexing process
 # indexação invertida, onde cada palavra é mapeada para os índices das publicações que a contêm.
 #vai ficar cada palavra do nome das publicações e o numero dos documentos em que aparece.
 for a in range(len(pub_list_stem_wo_sw)):
     for b in pub_list_stem_wo_sw[a].split(): #percorre cada palavra do nome de uma publicação
-        if b not in data_dict:
-             data_dict[b] = [a] # Se a palavra não existe, cria uma nova entrada
+        if b not in data_dict_stemm:
+             data_dict_stemm[b] = [a] # Se a palavra não existe, cria uma nova entrada
         else:
-            data_dict[b].append(a)
+            data_dict_stemm[b].append(a)
+
+data_dict_lemma = {}
+
+for a in range(len(pub_list_lemma_wo_sw)):
+    for b in pub_list_lemma_wo_sw[a].split():
+        if b not in data_dict_lemma:
+             data_dict_lemma[b] = [a]
+        else:
+            data_dict_lemma[b].append(a)
 
 # printing the lenght
 print(len(pub_list_wo_sc))
 print(len(pub_list_stem_wo_sw))
 print(len(pub_list_first_stem))
+print(len(pub_list_first_lemma))
 print(len(pub_list))
 
 # with open('publication_list.json', 'w') as f:
@@ -130,8 +156,13 @@ with open('publication_list_stemmed.json', 'w') as f:
     ujson.dump(pub_list_first_stem, f)
 
 with open('publication_indexed_dictionary.json', 'w') as f:
-    ujson.dump(data_dict, f)
+    ujson.dump(data_dict_stemm, f)
 
+with open('publication_list_lemma.json', 'w') as f:
+    ujson.dump(pub_list_first_lemma, f)
+
+with open('publication_indexed_dictionary_lemma.json', 'w') as f:
+    ujson.dump(data_dict_lemma, f)
 
 
 #-------------------------------------------------------Indice invertido dos abstract das publicações-------------------------------------------------------------------
@@ -149,11 +180,12 @@ nltk.download('punkt')
 stop_words = stopwords.words('english')
 #print(stop_words)
 stemmer = PorterStemmer()
+lemma = WordNetLemmatizer()
 
 pub_abstract_list = [] #abstracts sem modificações
 pub_abstract_list_first_stem = [] #abstracts sem stop words e com steming
+pub_abstract_list_first_lemma = []
 pub_abstract_list_wo_sc = [] #sem caracteres especiais
-pub_abstract_list_stem_wo_sw = [] #sem caracteres especiais, com steming, sem stop words
 print(len(pubAbstract))
 
 #o código tokeniza o nome de cada publicação, remove as stopwords e aplica o stemming nas palavras, criando uma versão "limpa" da publicação:
@@ -161,16 +193,20 @@ for abstract in pubAbstract:
 
     if not abstract.strip():  # Ignora abstracts vazios ou com só espaços
         pub_abstract_list_first_stem.append("")
+        pub_abstract_list_first_lemma.append("")
         pub_abstract_list.append("")
         continue
 
     #Splitting strings to tokens(words)
     words = word_tokenize(abstract)
     stem_word = ""
+    lemma_word = ""
     for i in words:
         if i.lower() not in stop_words:
             stem_word += stemmer.stem(i) + " "
+            lemma_word += lemma.lemmatize(i) + " "
     pub_abstract_list_first_stem.append(stem_word)
+    pub_abstract_list_first_lemma.append(lemma_word)
     pub_abstract_list.append(abstract)
 
 #Removing all below characters (dos nomes das publicações)
@@ -192,22 +228,27 @@ for abstract in pub_abstract_list:
     #print(word_wo_sc)
     pub_abstract_list_wo_sc.append(word_wo_sc)
 
-
+pub_abstract_list_stem_wo_sw = [] #sem caracteres especiais, com steming, sem stop words
+pub_abstract_list_lemma_wo_sw = []
 #Stemming Process
 for abstract in pub_abstract_list_wo_sc:
 
     if not abstract.strip():
         pub_abstract_list_stem_wo_sw.append("")
+        pub_abstract_list_lemma_wo_sw.append("")
         continue
 
     words = word_tokenize(abstract)
     stem_word = ""
+    lemma_word = ""
     for a in words:
         if a.lower() not in stop_words:
             stem_word += stemmer.stem(a) + ' '
+            lemma_word += lemma.lemmatize(a) + ' '
     pub_abstract_list_stem_wo_sw.append(stem_word.lower())
+    pub_abstract_list_lemma_wo_sw.append(lemma_word.lower())
 
-data_dict = {} #Inverted Index holder
+data_dict_stemm = {} #Inverted Index holder
 
 # Indexing process
 # indexação invertida, onde cada palavra é mapeada para os índices das publicações que a contêm.
@@ -218,12 +259,28 @@ for a in range(len(pub_abstract_list_stem_wo_sw)):
         continue  # ignora se o abstract for vazio
 
     for b in pub_abstract_list_stem_wo_sw[a].split():
-        if b not in data_dict:
+        if b not in data_dict_stemm:
             if b != 'background':
-                data_dict[b] = [a]
+                data_dict_stemm[b] = [a]
         else:
-            data_dict[b].append(a)
+            data_dict_stemm[b].append(a)
 
+data_dict_lemma = {} #Inverted Index holder
+
+# Indexing process
+# indexação invertida, onde cada palavra é mapeada para os índices das publicações que a contêm.
+#vai ficar cada palavra do nome das publicações e o numero dos documentos em que aparece.
+for a in range(len(pub_abstract_list_lemma_wo_sw)):
+
+    if not pub_abstract_list_lemma_wo_sw[a].strip():
+        continue  # ignora se o abstract for vazio
+
+    for b in pub_abstract_list_lemma_wo_sw[a].split():
+        if b not in data_dict_lemma:
+            if b != 'background':
+                data_dict_lemma[b] = [a]
+        else:
+            data_dict_lemma[b].append(a)
 
 # printing the lenght
 print(len(pub_abstract_list))
@@ -238,6 +295,10 @@ with open('publication_abstract_list_stemmed_abstract.json', 'w') as f: #sem sto
     ujson.dump(pub_abstract_list_first_stem, f)
 
 with open('publication_indexed_dictionary_abstract.json', 'w') as f: #indice invertido, onde se removeu caracteres especiais, stop words e com stem
-    ujson.dump(data_dict, f)
+    ujson.dump(data_dict_stemm, f)
 
+with open('publication_abstract_list_lemma_abstract.json', 'w') as f: #sem stop words e com stem
+    ujson.dump(pub_abstract_list_first_lemma, f)
 
+with open('publication_indexed_dictionary_abstract_lemma.json', 'w') as f: #indice invertido, onde se removeu caracteres especiais, stop words e com stem
+    ujson.dump(data_dict_lemma, f)

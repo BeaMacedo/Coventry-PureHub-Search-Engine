@@ -328,7 +328,7 @@ def descarregar_pdfs_LIB():
     pasta_destino = "pdfs_LIBMathematicsSupportCentre"
     os.makedirs(pasta_destino, exist_ok=True)
 
-    grupo_alvo = "LIB Mathematics Support Centre"
+    grupo_alvo = "Centre for Healthcare and Communities"
     count = 0
     dic_indices_pdfs = {}  # Mapeia {count: índice_original}
 
@@ -409,7 +409,7 @@ def descarregar_pdfs_LIB():
         json.dump(dic_indices_pdfs, json_file, ensure_ascii=False, indent=4)
 
 
-#descarregar_pdfs_LIB()
+descarregar_pdfs_LIB()
 
 
 
