@@ -1,10 +1,19 @@
 
 import nltk #NLTK for natural language processing tasks
 import ujson
+import wordnet
 from nltk.corpus import stopwords # list of stop word 
 from nltk.tokenize import word_tokenize # To tokenize each word
 from nltk.stem import PorterStemmer # For specific rules to transform words to their stems
 from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet
+from nltk import pos_tag
+
+#Downloading libraries to use its methods
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
 
 with open('scraper_results.json', 'r') as doc: scraper_results=doc.read()
 with open('scraper_results_with_abstracts.json', 'r') as doc: scraper_results_abs=doc.read()
@@ -55,25 +64,7 @@ with open('pub_linksPDF.json', 'w') as f: ujson.dump(pubLinkPDF, f)
 #cada um destes ficheiros json armazenam todos os nomes das publicações/url/autor/data
 
 
-
-#-------------------------------------------------------Indice invertido dos nomes das publicações-------------------------------------------------------------------
-#Open a file with publication names in read mode
-with open('pub_name.json','r') as f:publication=f.read()
-
-#Load JSON File
-pubName = ujson.loads(publication)
-
-#Downloading libraries to use its methods
-nltk.download('stopwords')
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('wordnet')
-
-#Predefined stopwords in nltk are used
-stop_words = stopwords.words('english')
-lemma = WordNetLemmatizer()
-
-'''# Função para converter POS tags para o formato WordNet
+# Função para converter POS tags para o formato WordNet
 def get_wordnet_pos(treebank_tag):
     if treebank_tag.startswith('J'):
         return wordnet.ADJ
@@ -85,7 +76,39 @@ def get_wordnet_pos(treebank_tag):
         return wordnet.ADV
     else:
         return wordnet.NOUN  # Padrão para substantivo
-'''
+
+#Função para a lematização:
+def enhanced_lemmatize(text):
+    lemmatizer = WordNetLemmatizer()
+
+    # Tokenizar e obter POS tags
+    tokens = word_tokenize(text)
+    pos_tags = pos_tag(tokens)
+
+    lemmas = []
+    for token, tag in pos_tags:
+        # Obter a tag no formato WordNet
+        wn_tag = get_wordnet_pos(tag)
+        # Lematizar com a tag apropriada
+        lemma = lemmatizer.lemmatize(token, wn_tag)
+        lemmas.append(lemma)
+
+    return ' '.join(lemmas)
+
+#text = "The cats are running quickly and jumping high"
+#print(enhanced_lemmatize(text))
+
+#-------------------------------------------------------Indice invertido dos nomes das publicações-------------------------------------------------------------------
+#Open a file with publication names in read mode
+with open('pub_name.json','r') as f:publication=f.read()
+
+#Load JSON File
+pubName = ujson.loads(publication)
+
+#Predefined stopwords in nltk are used
+stop_words = stopwords.words('english')
+lemma = WordNetLemmatizer()
+
 stemmer = PorterStemmer()
 pub_list_first_stem = [] #nomes das publicações após tokenização, remoção de stopwords e stemming.
 pub_list_first_lemma = []
@@ -101,8 +124,9 @@ for file in pubName:
     lemma_word = ""
     for i in words:
         if i.lower() not in stop_words: # Remove stopwords
-            stem_word += stemmer.stem(i) + " " # # Aplica stemming
-            lemma_word += lemma.lemmatize(i) + " "
+            stem_word += stemmer.stem(i) + " "
+    lemma_word = enhanced_lemmatize(' '.join([w.lower() for w in words if w.lower() not in stop_words]))
+    #print(f"lema_word: {lemma_word}")
     pub_list_first_stem.append(stem_word)
     pub_list_first_lemma.append(lemma_word)
     pub_list.append(file)
@@ -133,7 +157,7 @@ for name in pub_list_wo_sc: #vai à lista com os nomes das publicações sem car
     for a in words:
         if a.lower() not in stop_words:
             stem_word += stemmer.stem(a) + ' '
-            lemma_word += lemma.lemmatize(a) + ' '
+    lemma_word = enhanced_lemmatize(' '.join([w.lower() for w in words if w.lower() not in stop_words]))
     pub_list_stem_wo_sw.append(stem_word.lower())
     pub_list_lemma_wo_sw.append(lemma_word.lower())
 
@@ -220,7 +244,7 @@ for abstract in pubAbstract:
     for i in words:
         if i.lower() not in stop_words:
             stem_word += stemmer.stem(i) + " "
-            lemma_word += lemma.lemmatize(i) + " "
+    lemma_word = enhanced_lemmatize(' '.join([w.lower() for w in words if w.lower() not in stop_words]))
     pub_abstract_list_first_stem.append(stem_word)
     pub_abstract_list_first_lemma.append(lemma_word)
     pub_abstract_list.append(abstract)
@@ -260,7 +284,7 @@ for abstract in pub_abstract_list_wo_sc:
     for a in words:
         if a.lower() not in stop_words:
             stem_word += stemmer.stem(a) + ' '
-            lemma_word += lemma.lemmatize(a) + ' '
+    lemma_word = enhanced_lemmatize(' '.join([w.lower() for w in words if w.lower() not in stop_words]))
     pub_abstract_list_stem_wo_sw.append(stem_word.lower())
     pub_abstract_list_lemma_wo_sw.append(lemma_word.lower())
 

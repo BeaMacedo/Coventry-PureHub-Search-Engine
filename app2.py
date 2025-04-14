@@ -1,3 +1,4 @@
+import nltk
 import streamlit as st #cria a interface web
 from PIL import Image
 import ujson
@@ -6,36 +7,48 @@ from sklearn.metrics.pairwise import cosine_similarity
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet
+from nltk import pos_tag
 
-import nltk
 nltk.download('stopwords')
 nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
 
 
 # Set up the NLTK components
 stemmer = PorterStemmer()
 stop_words = stopwords.words('english')
 tfidf = TfidfVectorizer()
+lemmatizer = WordNetLemmatizer()
 
 # Load the data
 with open('publication_list_stemmed.json', 'r') as f:
     pub_list_first_stem = ujson.load(f)
+with open('publication_list_lemma.json', 'r') as f:
+    pub_list_first_lemma = ujson.load(f)
 with open('publication_indexed_dictionary.json', 'r') as f: #{nome publicação:[0,1,5,..] publicações em que aparece}
-    pub_index = ujson.load(f)
+    pub_index_stem = ujson.load(f)
+with open('publication_indexed_dictionary_lemma.json', 'r') as f: #{nome publicação:[0,1,5,..] publicações em que aparece}
+    pub_index_lemma = ujson.load(f)
 with open('author_list_stemmed.json', 'r') as f:
     author_list_first_stem = ujson.load(f)
+with open('author_list_lemma.json', 'r') as f:
+    author_list_first_lemma = ujson.load(f)
 with open('author_indexed_dictionary.json', 'r') as f:
-    author_index = ujson.load(f)
+    author_index_stem = ujson.load(f)
+with open('author_indexed_dictionary_lemma.json', 'r') as f:
+    author_index_lemma = ujson.load(f)
 with open('publication_abstract_list_stemmed_abstract.json', 'r') as f:
     pub_abstract_list_first_stem = ujson.load(f)
+with open('publication_abstract_list_lemma_abstract.json', 'r') as f:
+    pub_abstract_list_first_lemma = ujson.load(f)
 with open('publication_indexed_dictionary_abstract.json', 'r') as f:
-    pub_abstract_index = ujson.load(f)
+    pub_abstract_index_stem = ujson.load(f)
+with open('publication_indexed_dictionary_abstract_lemma.json', 'r') as f:
+    pub_abstract_index_lemma = ujson.load(f)
 
-
-#with open("pdf_list_stemmed.json", "r") as f:
-#    pdf_list_first_stem = ujson.load(f)
-#with open("pdfs_indexed_dictionary.json", "r") as f:
-#    pub_index = ujson.load(f)
 # Carregar os índices específicos para o grupo LIB
 with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
     lib_index = ujson.load(f)
@@ -55,16 +68,34 @@ with open('pub_date.json', 'r') as f:
     pub_date = ujson.load(f)
 with open('pub_abstract.json', 'r') as f:
     pub_abstract = ujson.load(f)
-###### ACRESCENTAR DOS LINKS E DOS RESEARCH GROUPS
+with open('pub_groups.json', 'r') as f:
+    pub_groups = ujson.load(f)
+with open('pub_linksPDF.json', 'r') as f:
+    pub_linksPDF = ujson.load(f)
 
 with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
     pub_group_links = ujson.load(f)
 
 
+def search_data(input_text, operator_val, search_type, stem_lema): #função de procura
 
-def search_data(input_text, operator_val, search_type): #função de procura
+    if stem_lema == 2:  # se lematizacao
+        pub_index = pub_index_lemma
+        pub_list_first = pub_list_first_lemma
+        abstract_index = pub_abstract_index_lemma
+        pub_abstract_list_first = pub_abstract_list_first_lemma
+        author_index = author_index_lemma
+        author_list_first = author_list_first_lemma
+    else:
+        pub_index = pub_index_stem
+        pub_list_first = pub_list_first_stem
+        abstract_index = pub_abstract_index_stem
+        pub_abstract_list_first = pub_abstract_list_first_stem
+        author_index = author_index_stem
+        author_list_first = author_list_first_stem
+
     output_data = {}
-    if operator_val == 2: #pesquisa or
+    if operator_val == 2: #operador or
         input_text = input_text.lower().split() #separa a frase por espaços
         pointer = []
         for token in input_text:
@@ -79,20 +110,22 @@ def search_data(input_text, operator_val, search_type): #função de procura
             temp_file = []
             word_list = word_tokenize(token) #ex. machine-learning!, o tokenize faz ['machine','-','learning','!'] quando o split dava tudo junto
 
-            for x in word_list: #divide a pesquisa em palavras
-                if x not in stop_words: #remove stop words
-                    stem_temp += stemmer.stem(x) + " " #aplica stemming
-            stem_word_file.append(stem_temp)
-            print(stem_word_file)
-            #print(stem_temp)
+            if stem_lema == 1:
+                for x in word_list:
+                    if x not in stop_words:
+                        stem_temp += stemmer.stem(x) + " "
+            else:
+                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+            stem_word_file.append(stem_temp.strip())
+            print(f"stem_word {stem_word_file}")
 
             if search_type == "publication" and pub_index.get(stem_word_file[0].strip()): #Se for "publication", pesquisa no pub_index
                 pointer = pub_index.get(stem_word_file[0].strip())
-                print(pointer)
+                #print(pointer)
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
                 pointer = author_index.get(stem_word_file[0].strip())
-            elif search_type == "abstract" and pub_abstract_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
-                pointer = pub_abstract_index.get(stem_word_file[0].strip())
+            elif search_type == "abstract" and pub_abstract_index_stem.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
+                pointer = abstract_index.get(stem_word_file[0].strip())
 
             #print(pointer)
 
@@ -101,11 +134,11 @@ def search_data(input_text, operator_val, search_type): #função de procura
             else:
                 for j in pointer: #indice de cada documento que contem a palavra
                     if search_type == "publication":
-                        temp_file.append(pub_list_first_stem[j]) #testo do ficheiro publication_list_stemmed.json que é o texto do documento sem stop words e com stem
+                        temp_file.append(pub_list_first[j]) #texto do ficheiro publication_list_stemmed.json que é o texto do documento sem stop words e com stem
                     elif search_type == "author":
-                        temp_file.append(author_list_first_stem[j])
+                        temp_file.append(author_list_first[j])
                     elif search_type == "abstract":
-                        temp_file.append(pub_abstract_list_first_stem[j])
+                        temp_file.append(pub_abstract_list_first[j])
 
                 temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
@@ -131,10 +164,14 @@ def search_data(input_text, operator_val, search_type): #função de procura
             stem_word_file = [] #armazenar palavras após stemming
             word_list = word_tokenize(token)
             stem_temp = ""
-            for x in word_list:
-                if x not in stop_words:
-                    stem_temp += stemmer.stem(x) + " "
-            stem_word_file.append(stem_temp)
+            if stem_lema == 1:
+                for x in word_list:
+                    if x not in stop_words:
+                        stem_temp += stemmer.stem(x) + " "
+            else:
+                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+            stem_word_file.append(stem_temp.strip())
+            print(f"stem_word {stem_word_file}")
 
             if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
                 set1 = set(pub_index.get(stem_word_file[0].strip())) #set 1 é o conjunto dos indices dos documentos onde a palavra processada aparece
@@ -142,8 +179,8 @@ def search_data(input_text, operator_val, search_type): #função de procura
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
                 set1 = set(author_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
-            elif search_type == "abstract" and pub_abstract_index.get(stem_word_file[0].strip()):
-                set1 = set(pub_abstract_index.get(stem_word_file[0].strip()))
+            elif search_type == "abstract" and abstract_index.get(stem_word_file[0].strip()):
+                set1 = set(abstract_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1)) #adiciona os indices dos documentos onde aparece o token em questão
 
             if match_word == []: #se match_word estiver vazia - 1ºtoken, ela será preenchida com documentos que já aparecem em pointer
@@ -157,14 +194,15 @@ def search_data(input_text, operator_val, search_type): #função de procura
 
             if len(match_word) == 0: #se nenhum documento satis faz a query
                 output_data = {}
+
             else: #se houver match, vamos calcular tf-idf e similaridade com o cos
                 for j in list(match_word):
                     if search_type == "publication":
-                        temp_file.append(pub_list_first_stem[j]) #texto completo dos documentos sem stop words e com stem
+                        temp_file.append(pub_list_first[j]) #texto completo dos documentos sem stop words e com stem
                     elif search_type == "author":
-                        temp_file.append(author_list_first_stem[j])
+                        temp_file.append(author_list_first[j])
                     elif search_type == "abstract":
-                        temp_file.append(pub_abstract_list_first_stem[j])
+                        temp_file.append(pub_abstract_list_first[j])
 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
@@ -177,11 +215,11 @@ def search_data(input_text, operator_val, search_type): #função de procura
             else:
                 for j in pointer:
                     if search_type == "publication":
-                        temp_file.append(pub_list_first_stem[j])
+                        temp_file.append(pub_list_first[j])
                     elif search_type == "author":
-                        temp_file.append(author_list_first_stem[j])
+                        temp_file.append(author_list_first[j])
                     elif search_type == "abstract":
-                        temp_file.append(pub_abstract_list_first_stem[j])
+                        temp_file.append(pub_abstract_list_first[j])
 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
@@ -332,48 +370,48 @@ def app():  # interface Streamlit
     image = Image.open('cire.png')
     st.image(image)
 
-    st.title("LIB Mathematics Support Centre Publications Search")
+    input_text = st.text_input("Search research:", key="query_input")
+    operator_val = st.radio(
+        "Search Filters",
+        ['Exact', 'Relevant'],
+        index=1,
+        key="operator_input",
+        horizontal=True,
+    )
+    search_type = st.radio(
+        "Search in:",
+        ['Publications', 'Authors', 'Abstracts', 'LIB Mathematics Support Centre Publications Search'],
+        index=0,
+        key="search_type_input",
+        horizontal=True,
+    )
 
-    # Campo e opções da primeira seção (LIB)
-    search_input = st.text_input("Enter your search terms:")
-    operator = st.radio("Search operator:", ["AND", "OR"], index=0)
-    search_button = st.button("Search")
+    stem_lema = st.radio(
+        "Search with:",
+        ["Stemming", "Lemmatization"],
+        index=0,
+        key="stem_lema_input",
+        horizontal=True,
+    )
 
-    if search_button and search_input:
-        operator_val = 1 if operator == "AND" else 2
-        results = search_LIB_data(search_input, operator_val)
-        show_LIB_results(results)
-    else:
-        input_text = st.text_input("Search research:", key="query_input")
-        operator_val = st.radio(
-            "Search Filters",
-            ['Exact', 'Relevant'],
-            index=1,
-            key="operator_input",
-            horizontal=True,
-        )
-        search_type = st.radio(
-            "Search in:",
-            ['Publications', 'Authors', 'Abstracts'],
-            index=0,
-            key="search_type_input",
-            horizontal=True,
-        )
-
-        if st.button("SEARCH"):
-            if search_type == "Publications":
-                output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "publication")
-            elif search_type == "Authors":
-                output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "author")
-            elif search_type == "Abstracts":
-                output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "abstract")
-            else:
-                output_data = {}
-
-            # Display the search results
+    if st.button("SEARCH"):
+        if search_type == "Publications":
+            output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "publication",  1 if stem_lema == "Stemming" else 2 )
+            show_results(output_data, search_type)
+        elif search_type == "Authors":
+            output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "author", 1 if stem_lema == "Stemming" else 2 )
+            show_results(output_data, search_type)
+        elif search_type == "Abstracts":
+            output_data = search_data(input_text, 1 if operator_val == 'Exact' else 2, "abstract", 1 if stem_lema == "Stemming" else 2 )
+            show_results(output_data, search_type)
+        elif search_type == "LIB Mathematics Support Centre Publications Search":
+            output_data = search_LIB_data(input_text, 1 if operator_val == 'Exact' else 2)
+            show_LIB_results(output_data)
+        else:
+            output_data = {}
             show_results(output_data, search_type)
 
-        st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)
 
 
 
@@ -451,6 +489,38 @@ def show_results(output_data, search_type):
         st.info("No results found. Please try again.")
     else:
         st.info(f"Results shown for: {aa}")
+
+
+# Função para converter POS tags para o formato WordNet
+def get_wordnet_pos(treebank_tag):
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN  # Padrão para substantivo
+
+#Função para a lematização:
+def enhanced_lemmatize(text):
+    lemmatizer = WordNetLemmatizer()
+
+    # Tokenizar e obter POS tags
+    tokens = word_tokenize(text)
+    pos_tags = pos_tag(tokens)
+
+    lemmas = []
+    for token, tag in pos_tags:
+        # Obter a tag no formato WordNet
+        wn_tag = get_wordnet_pos(tag)
+        # Lematizar com a tag apropriada
+        lemma = lemmatizer.lemmatize(token, wn_tag)
+        lemmas.append(lemma)
+
+    return ' '.join(lemmas)
 
 
 if __name__ == '__main__':
