@@ -102,9 +102,6 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
             if len(input_text) < 2:
                 st.warning("Please enter at least 2 words to apply the operator.")
                 break
-            # if len(token) <= 3:
-            #     st.warning("Please enter more than 4 characters.")
-            #     break
             stem_temp = ""
             stem_word_file = []
             temp_file = []
@@ -114,8 +111,9 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                 for x in word_list:
                     if x not in stop_words:
                         stem_temp += stemmer.stem(x) + " "
-            else:
+            elif stem_lema == 2:
                 stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+
             stem_word_file.append(stem_temp.strip())
             print(f"stem_word {stem_word_file}")
 
@@ -124,7 +122,7 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                 #print(pointer)
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
                 pointer = author_index.get(stem_word_file[0].strip())
-            elif search_type == "abstract" and pub_abstract_index_stem.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
+            elif search_type == "abstract" and abstract_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
                 pointer = abstract_index.get(stem_word_file[0].strip())
 
             #print(pointer)

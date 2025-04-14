@@ -282,7 +282,7 @@ def adicionar_pdf_links(): #adicionar links dos pdfs nos resultados das pesquisa
 
 
 
-#--
+
 #Descarregar pdfs da area LIB Mathematics Support Centre
 import os
 import json
@@ -378,6 +378,7 @@ def descarregar_pdfs_LIB():
                     shutil.move(arquivo_baixado, caminho_final)
                     print(f"[✔] Salvo como: {titulo_sanitizado}")
                     dic_indices_pdfs[count] = idx  # Mapeia o count atual para o índice original
+                    print(f"Titulo: {titulo}, idx no scrapper: {idx}, nº pdf processado: {count}")
                     count += 1
                 except Exception as e:
                     # Tenta com nome mais curto se falhar
