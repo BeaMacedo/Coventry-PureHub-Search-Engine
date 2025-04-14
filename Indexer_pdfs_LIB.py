@@ -69,10 +69,27 @@ def extrair_texto_pdf(caminho_pdf):
         print(f"Erro ao processar o PDF {caminho_pdf}: {e}")
         return ""
 
+import re
 def limpar_texto(texto):
-    texto = texto.lower()
-    palavras = word_tokenize(texto)
-    return ' '.join(stemmer.stem(palavra) for palavra in palavras if palavra not in stop_words)
+    # Limpeza inicial
+    texto = re.sub(r'http\S+|www\S+|https\S+', '', texto)  # Remove URLs
+    texto = re.sub(r'\S+@\S+', '', texto)  # Remove emails
+    #texto = re.sub(r'[^\w\s]|_', ' ', texto)  # Remove caracteres especiais
+    texto = re.sub(r'\d+', ' ', texto)  # Remove números
+    texto = re.sub(r'\s+', ' ', texto).strip()  # Normaliza espaços
+
+    # Tokenização e stemming
+    palavras = word_tokenize(texto.lower())
+    palavras_filtradas = [
+        stemmer.stem(palavra)
+        for palavra in palavras
+        if (palavra not in stop_words and
+            len(palavra) > 2 and
+            palavra.isalpha())
+    ]
+
+    return ' '.join(palavras_filtradas)
+
 
 def descarregar_pdfs_LIB():
     with open("scraper_results_groups_links.json", "r", encoding="utf-8") as f:
@@ -86,7 +103,8 @@ def descarregar_pdfs_LIB():
     count = 0
 
     textos_limpos = []
-    data_dict = {}
+    dic_indices_pdfs = {}
+    index_invertido = {}
 
     for idx, pub in enumerate(publicacoes):
         grupos = pub.get("research_group", [])
@@ -137,13 +155,23 @@ def descarregar_pdfs_LIB():
 
                 # --- Processamento do texto diretamente aqui ---
                 texto_extraido = extrair_texto_pdf(caminho_final)
-                texto_semcar = ''.join(c for c in texto_extraido if c.isalnum() or c.isspace())
+
+                # Pré-limpeza antes de remover caracteres especiais
+                texto_extraido = re.sub(r'-\n', '', texto_extraido)  # Junta palavras quebradas
+                texto_extraido = re.sub(r'\n', ' ', texto_extraido)  # Substitui quebras por espaços
+
+                texto_semcar = re.sub(r'[^\w\s]|_', ' ', texto_extraido)  # Remove caracteres especiais
                 texto_limpo = limpar_texto(texto_semcar)
                 textos_limpos.append(texto_limpo)
+                dic_indices_pdfs[count] = idx
 
                 for palavra in texto_limpo.split():
-                    data_dict.setdefault(palavra, []).append(idx)  # usa idx original diretamente
+                    if palavra not in index_invertido:
+                        index_invertido[palavra] = [idx]
+                    else:
+                        index_invertido[palavra].append(idx)
 
+                print(f"✅ Texto processado e indexado. idx original: {idx}, índice PDF: {count}")
                 count += 1
 
             else:
@@ -163,7 +191,10 @@ def descarregar_pdfs_LIB():
         ujson.dump(textos_limpos, f, indent=2)
 
     with open('pdfs_indexed_dictionary.json', 'w', encoding='utf-8') as f:
-        ujson.dump(data_dict, f, indent=2)
+        ujson.dump(index_invertido, f, indent=2)
+
+    with open("dic_indices_pdfs.json", "w", encoding="utf-8") as f:
+        json.dump(dic_indices_pdfs, f, ensure_ascii=False, indent=4)
 
     print(f"\n[✅] Processo concluído! {count} PDFs do {grupo_alvo} foram baixados e processados.")
 

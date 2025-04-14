@@ -281,8 +281,8 @@ def adicionar_pdf_links(): #adicionar links dos pdfs nos resultados das pesquisa
 #adicionar_pdf_links()
 
 
-
-
+'''
+#agora esta no Indexer_pdfs_LIB
 #Descarregar pdfs da area LIB Mathematics Support Centre
 import os
 import json
@@ -411,7 +411,7 @@ def descarregar_pdfs_LIB():
 
 
 descarregar_pdfs_LIB()
-
+'''
 
 
 
@@ -639,11 +639,6 @@ def initCrawlerScraper(seed: str, max_profiles=500):
 initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
 """
 
-
-#resumo:
-#1ºO código acede ao portal da Coventry University e coleta os perfis dos pesquisadores.
-#2º Para cada perfil, ele acessa a seção "Research Output" e coleta as publicações.
-#3º As informações são organizadas e salvas no arquivo scraper_results.json.
 
 
 #função para ver se o numero de publicações de uma dado autor corresponde ao numero correto de aplicações
