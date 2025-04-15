@@ -13,17 +13,51 @@ from nltk import pos_tag
 import math as m
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import re
+from collections import defaultdict
+
+# Função para converter POS tags para o formato WordNet
+def get_wordnet_pos(treebank_tag):
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN  # Padrão para substantivo
+
+#Função para a lematização:
+def enhanced_lemmatize(text):
+    lemmatizer = WordNetLemmatizer()
+
+    # Tokenizar e obter POS tags
+    tokens = word_tokenize(text)
+    pos_tags = pos_tag(tokens)
+
+    lemmas = []
+    for token, tag in pos_tags:
+        # Obter a tag no formato WordNet
+        wn_tag = get_wordnet_pos(tag)
+        # Lematizar com a tag apropriada
+        lemma = lemmatizer.lemmatize(token, wn_tag)
+        lemmas.append(lemma)
+
+    return ' '.join(lemmas)
 
 
-def operacoes_logicas(input_text, operator_val, search_type, stem_lema):
-    if stem_lema == 2:  # se lematizacao
+def search_with_operators(input_text, search_type, stem_lema):
+    # Configuração dos índices
+    if stem_lema == 2:  # lematização
         pub_index = pub_index_lemma
         pub_list_first = pub_list_first_lemma
         abstract_index = pub_abstract_index_lemma
         pub_abstract_list_first = pub_abstract_list_first_lemma
         author_index = author_index_lemma
         author_list_first = author_list_first_lemma
-    else:
+    else:  # stemming
         pub_index = pub_index_stem
         pub_list_first = pub_list_first_stem
         abstract_index = pub_abstract_index_stem
@@ -31,248 +65,143 @@ def operacoes_logicas(input_text, operator_val, search_type, stem_lema):
         author_index = author_index_stem
         author_list_first = author_list_first_stem
 
+    # Parse da query
+    and_groups, not_terms = parse_query(input_text)
+
+    # 1. Processar NOTs primeiro
+    docs_to_exclude = set()
+    for term in not_terms:
+        stemmed_term = process_term(term, stem_lema)
+        if search_type == "publication" and stemmed_term in pub_index:
+            docs_to_exclude.update(set(pub_index[stemmed_term]))
+        elif search_type == "author" and stemmed_term in author_index:
+            docs_to_exclude.update(set(author_index[stemmed_term]))
+        elif search_type == "abstract" and stemmed_term in abstract_index:
+            docs_to_exclude.update(set(abstract_index[stemmed_term]))
+
+    # 2. Processar OR groups
+    all_matching_docs = set()
+
+    for group in and_groups:
+        # Ordenar termos por frequência (do mais raro para o mais comum)
+        terms_with_freq = []
+        for term in group:
+            stemmed_term = process_term(term, stem_lema)
+            freq = 0
+            if search_type == "publication" and stemmed_term in pub_index:
+                freq = len(pub_index[stemmed_term])
+            elif search_type == "author" and stemmed_term in author_index:
+                freq = len(author_index[stemmed_term])
+            elif search_type == "abstract" and stemmed_term in abstract_index:
+                freq = len(abstract_index[stemmed_term])
+            terms_with_freq.append((stemmed_term, freq))
+
+        # Ordenar termos pela frequência (ascendente)
+        terms_sorted = sorted(terms_with_freq, key=lambda x: x[1])
+
+        # Processar ANDs na ordem otimizada
+        group_docs = None
+        for term, _ in terms_sorted:
+            term_docs = set()
+            if search_type == "publication" and term in pub_index:
+                term_docs = set(pub_index[term])
+            elif search_type == "author" and term in author_index:
+                term_docs = set(author_index[term])
+            elif search_type == "abstract" and term in abstract_index:
+                term_docs = set(abstract_index[term])
+
+            if group_docs is None:
+                group_docs = term_docs
+            else:
+                group_docs.intersection_update(term_docs)
+                if not group_docs:  # Early exit se conjunto vazio
+                    break
+
+        if group_docs:
+            all_matching_docs.update(group_docs)
+
+    # 3. Aplicar NOTs
+    final_docs = all_matching_docs - docs_to_exclude
+
+    # 4. Calcular similaridade do cosseno
     output_data = {}
-    if operator_val == 2:  # OPERADOR OR
-        input_text = input_text.lower().split()
-        pointer = []
-        stem_word_file1 = []
-        temp_file = []
+    if final_docs:
+        # Preparar query para TF-IDF
+        query_terms = []
+        for group in and_groups:
+            for term in group:
+                stemmed_term = process_term(term, stem_lema)
+                query_terms.append(stemmed_term)
+        query_text = ' '.join(query_terms)
+        print(f"query_text: {query_text}")
 
-        for token in input_text:
-            stem_temp = ""
-            stem_word_file1 = []  # query
-            temp_file1 = []
-            pointer1 = []
-            word_list = word_tokenize(token)
+        # Preparar textos dos documentos
+        docs_texts = []
+        doc_ids = []
+        for doc_id in final_docs:
+            if search_type == "publication":
+                docs_texts.append(pub_list_first[doc_id])
+            elif search_type == "author":
+                docs_texts.append(author_list_first[doc_id])
+            elif search_type == "abstract":
+                docs_texts.append(pub_abstract_list_first[doc_id])
+            doc_ids.append(doc_id)
 
-            if stem_lema == 1:
-                for x in word_list:
-                    if x not in stop_words:
-                        stem_temp += stemmer.stem(x) + " "
-            elif stem_lema == 2:
-                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+        # Calcular TF-IDF e similaridade do cosseno
+        tfidf_matrix = tfidf.fit_transform(docs_texts)
+        query_vector = tfidf.transform([query_text])
+        cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
 
-            stem_word_file1.append(stem_temp.strip())
+        # Atribuir scores aos documentos
+        for idx, doc_id in enumerate(doc_ids):
+            output_data[doc_id] = cosine_scores[idx][0]
 
-            if search_type == "publication" and pub_index.get(stem_word_file1[0].strip()): #Se for "publication", pesquisa no pub_index
-                pointer1 = pub_index.get(stem_word_file1[0].strip())
-                #print(pointer)
-            elif search_type == "author" and author_index.get(stem_word_file1[0].strip()): #Se for "author", pesquisa no author_index
-                pointer1 = author_index.get(stem_word_file1[0].strip())
-            elif search_type == "abstract" and abstract_index.get(stem_word_file1[0].strip()): #Se for "author", pesquisa no author_index
-                pointer1 = abstract_index.get(stem_word_file1[0].strip())
-
-
-            if len(pointer1) == 0:
-                output_data = {}
-            else:
-                for j in pointer: #indice de cada documento que contem a palavra
-                    if search_type == "publication":
-                        temp_file1.append(pub_list_first[j]) #texto do ficheiro publication_list_stemmed.json que é o texto do documento sem stop words e com stem
-                    elif search_type == "author":
-                        temp_file1.append(author_list_first[j])
-                    elif search_type == "abstract":
-                        temp_file1.append(pub_abstract_list_first[j])
-
-            temp_file += temp_file1
-            pointer += pointer1
-
-        return temp_file, stem_word_file1, pointer
-
-    elif operator_val == 1:  # AND
-        input_text = input_text.lower().split()
-        pointer = []
-        match_word = []
-        for token in input_text:
-            temp_file = []
-            set2 = set()
-            stem_word_file = []
-            word_list = word_tokenize(token)
-            stem_temp = ""
-            if stem_lema == 1:
-                for x in word_list:
-                    if x not in stop_words:
-                        stem_temp += stemmer.stem(x) + " "
-            else:
-                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
-            stem_word_file.append(stem_temp.strip())
-
-            if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
-                set1 = set(pub_index.get(stem_word_file[0].strip())) #set 1 é o conjunto dos indices dos documentos onde a palavra processada aparece
-                pointer.extend(list(set1)) #Adiciona o conjunto set1 ao pointer
-            elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
-                set1 = set(author_index.get(stem_word_file[0].strip()))
-                pointer.extend(list(set1))
-            elif search_type == "abstract" and abstract_index.get(stem_word_file[0].strip()):
-                set1 = set(abstract_index.get(stem_word_file[0].strip()))
-                pointer.extend(list(set1)) #adiciona os indices dos documentos onde aparece o token em questão
+    return output_data
 
 
-            if match_word == []:
-                match_word = list(
-                    {z for z in pointer if z in set2 or (set2.add(z) or False)}
-                )
-            else:
-                match_word.extend(list(set1))
-                match_word = list(
-                    {z for z in match_word if z in set2 or (set2.add(z) or False)}
-                )
+def process_term(term, stem_lema):
+    # Processa um termo (stemming ou lematização)
+    word_list = word_tokenize(term)
+    stem_temp = ""
 
-        if len(input_text) > 1:
-            match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)}
-            if len(match_word) == 0:
-                output_data = {}
+    if stem_lema == 1:  # stemming
+        for x in word_list:
+            if x not in stop_words:
+                stem_temp += stemmer.stem(x) + " "
+    else:  # lematização
+        stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
 
-            else:
-                for j in list(match_word):
-                    if search_type == "publication":
-                        temp_file.append(pub_list_first[j]) #texto completo dos documentos sem stop words e com stem
-                    elif search_type == "author":
-                        temp_file.append(author_list_first[j])
-                    elif search_type == "abstract":
-                        temp_file.append(pub_abstract_list_first[j])
-            return temp_file, stem_word_file, list(match_word)
-
-        else:
-            if len(pointer) == 0:
-                output_data = {}
-            else:
-                for j in pointer:
-                    if search_type == "publication":
-                        temp_file.append(pub_list_first[j])
-                    elif search_type == "author":
-                        temp_file.append(author_list_first[j])
-                    elif search_type == "abstract":
-                        temp_file.append(pub_abstract_list_first[j])
-
-            return temp_file, stem_word_file, pointer
-
-    elif operator_val == 3:  # OPERADOR NOT
-        input_text = input_text.lower().split()
-        pointer = []
-        match_word = []
-        complete_set = []
-        to_remove = []
-        temp_file = []
-        stem_word_file = []
-        if search_type == "publication":
-            complete_set = list(
-                set(value for values in pub_index.values() for value in values)
-            )  # lista de todos os indices dos docs
-
-        elif search_type == "author":
-            complete_set = list(
-                set(value for values in author_index.values() for value in values)
-            )  # lista de todos os indices dos docs
-
-        elif search_type == "abstract":
-            complete_set = list(
-                set(value for values in abstract_index.values() for value in values)
-            )  # lista de todos os indices dos docs
-
-        for token in input_text:
-
-            set2 = set()
-
-            word_list = word_tokenize(token)
-            stem_temp = ""
-            if stem_lema == 1:
-                for x in word_list:
-                    if x not in stop_words:
-                        stem_temp += stemmer.stem(x) + " "
-            else:
-                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
-
-            stem_word_file.append(stem_temp.strip())
-            set1 = set()  # definir a variável
-            if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
-                set1 = set(
-                    pub_index.get(stem_word_file[0].strip())
-                )  # indices dos docs que fazem match
-
-            elif search_type == "author" and author_index.get(
-                    stem_word_file[0].strip()
-            ):
-                set1 = set(author_index.get(stem_word_file[0].strip()))
-
-            elif search_type == "abstract" and abstract_index.get(
-                    stem_word_file[0].strip()
-            ):
-                set1 = set(abstract_index.get(stem_word_file[0].strip()))
-
-            to_remove += list(set1)
-
-        complete_set = list(set(complete_set) - set(to_remove))
-
-        if len(input_text) > 1:
-            for j in list(complete_set):
-                if search_type == "publication":
-                    temp_file.append(pub_list_first[j])
-                elif search_type == "author":
-                    temp_file.append(author_list_first_stem[j])
-                elif search_type == "abstract":
-                    temp_file.append(pub_abstract_list_first[j])
-
-        else:
-            if len(complete_set) == 0:
-                output_data = {}
-            else:
-                for j in list(complete_set):
-                    if search_type == "title":
-                        temp_file.append(pub_list_first[j])
-                    elif search_type == "author":
-                        temp_file.append(author_list_first_stem[j])
-                    if search_type == "abstract":
-                        temp_file.append(pub_abstract_list_first[j])
-
-        return temp_file, stem_word_file, list(complete_set)
+    return stem_temp.strip()
 
 
-def not_operador(word):
-    operadores = ["not", "and", "or"]
-    if word not in operadores:
-        return True
-    else:
-        return False
-
-import re
 def parse_query(query):
-    operadores = ["not", "and", "or"]
+    # Processa a query e divide em partes AND, OR e NOT
     query = query.lower().strip()
-    operacoes_and1 = []
-    query1 = query
-    while re.search(r"([^\s]+) and ([^\s]+)", query1):
-        query1 = re.sub(r"([^\s]+) and ([^\s]+)", r"\1 \2", query1)
 
-    operacoes_and = []
-    for tuple in operacoes_and1:
-        operacoes_and.append(f"{tuple[0]} {tuple[1]}")
+    # Processar NOTs
+    not_terms = []
+    not_pattern = re.compile(r'not\s+([^\s]+)')
+    for match in not_pattern.finditer(query):
+        not_terms.append(match.group(1))
 
-    operacoes_or = re.split(r" or ", query)
-    operacoes_not1 = re.findall(r"not ([^\s]+)", query)
-    operacoes_not = []
-    if operacoes_not1:
-        for operacao in operacoes_not1:
-            if operacao:
-                operacao = operacao.split(" ")
-                operacoes_not.append(operacao[0])
-    or_queries = []
-    for i in range(len(operacoes_or) - 1):
-        t1 = operacoes_or[i].split()
-        termo1 = t1[len(t1) - 1]
-        t2 = operacoes_or[i + 1].split()
-        termo2 = t2[0]
-        or_queries.append(termo1 + " " + termo2)
+    # Remover NOTs para processar o resto
+    query_without_nots = not_pattern.sub('', query)
 
-    query2 = query1.split()
-    for i in range(len(query2) - 1):
-        if not_operador(query2[i]) and not_operador(query2[i + 1]):
-            operacoes_and.append(f"{query2[i]} {query2[i + 1]}")
-    print("look here ::: " + str(operacoes_and) + "----" + str(operacoes_not) + "-----" + str(or_queries))
+    # Processar ORs (tem precedência sobre AND)
+    or_groups = [group.strip() for group in re.split(r'\bor\b', query_without_nots) if group.strip()]
 
-    return operacoes_and, operacoes_not, or_queries
+    # Processar ANDs em cada grupo OR
+    and_groups = []
+    for group in or_groups:
+        # Dividir por AND explícito ou espaços
+        terms = []
+        for part in re.split(r'\band\b|\s+', group):
+            if part.strip():
+                terms.append(part.strip())
+        if terms:
+            and_groups.append(terms)
 
-
+    return and_groups, not_terms
 
 nltk.download('stopwords')
 nltk.download('punkt')
@@ -311,14 +240,11 @@ with open('publication_indexed_dictionary_abstract.json', 'r') as f:
     pub_abstract_index_stem = ujson.load(f)
 with open('publication_indexed_dictionary_abstract_lemma.json', 'r') as f:
     pub_abstract_index_lemma = ujson.load(f)
-
 # Carregar os índices específicos para o grupo LIB
 with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
     lib_index = ujson.load(f)
 with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
     lib_texts = ujson.load(f)
-
-
 with open('author_names.json', 'r') as f:
     author_name = ujson.load(f)
 with open('pub_name.json', 'r') as f:
@@ -437,6 +363,7 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
             if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
                 set1 = set(pub_index.get(stem_word_file[0].strip())) #set 1 é o conjunto dos indices dos documentos onde a palavra processada aparece
                 pointer.extend(list(set1)) #Adiciona o conjunto set1 ao pointer
+                print(f"pointer: {pointer}")
             elif search_type == "author" and author_index.get(stem_word_file[0].strip()):
                 set1 = set(author_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
@@ -449,28 +376,33 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
             else: #match_word vai conter no final os documentos onde aparecem TODOS os termos de pesquisa (interseção de set1 ao longo do loop)
                 match_word.extend(list(set1))
                 match_word = list({z for z in match_word if z in set2 or (set2.add(z) or False)}) # atualização da lista para garantir que apenas os documentos que correspondem a todos os tokens sejam mantidos.
-
+        print(f"match_word_first: {match_word}")
         if len(input_text) > 1:
             match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)}
-
-            if len(match_word) == 0: #se nenhum documento satis faz a query
+            print(f"match_word_first: {match_word}")
+            if len(match_word) == 0: #se nenhum documento satisfaz faz a query
                 output_data = {}
+
 
             else: #se houver match, vamos calcular tf-idf e similaridade com o cos
                 for j in list(match_word):
+                    print(f"j: {j}")
                     if search_type == "publication":
                         temp_file.append(pub_list_first[j]) #texto completo dos documentos sem stop words e com stem
                     elif search_type == "author":
                         temp_file.append(author_list_first[j])
                     elif search_type == "abstract":
                         temp_file.append(pub_abstract_list_first[j])
-
+                        #print(f"temp_file: {temp_file}")
                 temp_file = tfidf.fit_transform(temp_file)
+                print(f"stem_word_file: {stem_word_file}")
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-
+                print("cosine_output1: ", cosine_output)
                 for j in list(match_word):
                     output_data[j] = cosine_output[list(match_word).index(j)]
-        else:   #se a query tiver só uma palavra
+                    print(f"output_data: {output_data}")
+
+        else:
             if len(pointer) == 0:
                 output_data = {}
             else:
@@ -484,143 +416,13 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-
+                print(f"cosine_output2:{stem_word_file}")
                 for j in pointer:
                     output_data[j] = cosine_output[pointer.index(j)]
 
-    elif operator_val == 3:  # OPERADOR NOT
-        input_text = input_text.lower().split()
-        pointer = []
-        match_word = []
-        complete_set = []
-        to_remove = []
+    elif operator_val == 3:  # PESQUISA COM OPERADORES LOGICOS
 
-        if search_type == "publication":
-            complete_set = list(
-                set(value for values in pub_index.values() for value in values)
-            )  # lista de todos os indices dos docs
-
-        elif search_type == "author":
-            complete_set = list(
-                set(value for values in author_index.values() for value in values)
-            )  # lista de todos os indices dos docs
-
-        elif search_type == "abstract":
-            complete_set = list(
-                set(value for values in abstract_index.values() for value in values)
-            )  # lista de todos os indices dos docs
-
-        for token in input_text:
-
-            temp_file = []
-            set1 = set()
-            set2 = set()
-            stem_word_file = []
-            word_list = word_tokenize(token)
-            stem_temp = ""
-
-            if stem_lema == 1:
-                for x in word_list:
-                    if x not in stop_words:
-                        stem_temp += stemmer.stem(x) + " "
-            else:
-                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
-
-            stem_word_file.append(stem_temp.strip())
-            if search_type == "publication" and pub_index.get(stem_word_file[0].strip()):
-                set1 = set(
-                    pub_index.get(stem_word_file[0].strip())
-                )  # indices dos docs que fazem match
-
-            elif search_type == "author" and author_index.get(
-                    stem_word_file[0].strip()
-            ):
-                set1 = set(author_index.get(stem_word_file[0].strip()))
-
-            elif search_type == "abstract" and abstract_index.get(
-                    stem_word_file[0].strip()
-            ):
-                set1 = set(abstract_index.get(stem_word_file[0].strip()))
-
-        if len(input_text) > 0:
-            for j in list(complete_set):
-                if search_type == "publication":
-                    temp_file.append(pub_list_first[j])
-                elif search_type == "author":
-                    temp_file.append(author_list_first_stem[j])
-                elif search_type == "abstract":
-                    temp_file.append(pub_abstract_list_first[j])
-
-            temp_file = tfidf.fit_transform(temp_file)
-            cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-            for j in list(complete_set):
-                output_data[j] = cosine_output[list(complete_set).index(j)]
-
-
-        else:
-            if len(complete_set) == 0:
-                output_data = {}
-            else:
-                for j in list(complete_set):
-                    if search_type == "title":
-                        temp_file.append(pub_list_first[j])
-                    elif search_type == "author":
-                        temp_file.append(author_list_first_stem[j])
-                    if search_type == "abstract":
-                        temp_file.append(pub_abstract_list_first[j])
-
-                temp_file = tfidf.fit_transform(temp_file)
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-                for j in list(complete_set):
-                    output_data[j] = cosine_output[list(complete_set).index(j)]
-
-
-    elif operator_val == 4:  # PESQUISA COM OPERADORES LOGICOS
-        temp_file = []
-        stem_word_file = []
-        output_data = {}
-        pointer = []
-        if len(input_text.split()) > 1:
-            operacoes_and, operacoes_not, operacoes_or = parse_query(input_text)
-            for ope in operacoes_not:
-                temp_file1, stem_word_file1, pointer1 = operacoes_logicas(
-                    ope, 3, search_type, stem_lema
-                )
-                temp_file += temp_file1
-                stem_word_file = stem_word_file1
-                pointer += pointer1
-
-
-            for ope in operacoes_or:
-                temp_file1, stem_word_file1, pointer1 = operacoes_logicas(
-                    ope, 2, search_type, stem_lema
-                )
-                temp_file += temp_file1
-                stem_word_file = stem_word_file1
-                pointer += pointer1
-
-
-            # EXECUTAR OPERACOES AND
-            for ope in operacoes_and:
-                temp_file1, stem_word_file1, pointer1 = operacoes_logicas(
-                    ope, 1, search_type, stem_lema
-                )
-                temp_file += temp_file1  # ANTES ESTAVA ASSIM   ----- > list(set(temp_file1 + temp_file))
-                stem_word_file = stem_word_file1
-                if len(pointer) != 0:
-                    pointer = list((set(pointer).intersection(set(pointer1))))
-                else:
-                    pointer = pointer1
-
-        else:
-            temp_file, stem_word_file, pointer = operacoes_logicas(
-                input_text, 2, search_type, stem_lema
-            )
-
-        temp_file = tfidf.fit_transform(temp_file)
-        cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-        for j in pointer:
-            output_data[j] = cosine_output[pointer.index(j)]
+        output_data = search_with_operators(input_text, search_type, stem_lema)
 
     return output_data
 
@@ -768,7 +570,7 @@ def app():  # interface Streamlit
     input_text = st.text_input("Search research:", key="query_input")
     operator_val = st.radio(
         "Search Filters",
-        ["AND", "OR", "NOT", "Logical operators"],
+        ["AND", "OR", "Logical operators"],
         index=1,
         key="operator_input",
         horizontal=True,
@@ -794,7 +596,7 @@ def app():  # interface Streamlit
             output_data = search_data(input_text, 1 if operator_val == 'AND' else (
                             2
                             if operator_val == "OR"
-                            else (3 if operator_val == "NOT" else 4)
+                            else 3
                         ), "publication",  1 if stem_lema == "Stemming" else 2 )
 
             show_results(output_data, search_type)
@@ -802,7 +604,7 @@ def app():  # interface Streamlit
             output_data = search_data(input_text, 1 if operator_val == 'AND' else (
                             2
                             if operator_val == "OR"
-                            else (3 if operator_val == "NOT" else 4)
+                            else 3
                         ), "author", 1 if stem_lema == "Stemming" else 2 )
 
             show_results(output_data, search_type)
@@ -810,7 +612,7 @@ def app():  # interface Streamlit
             output_data = search_data(input_text, 1 if operator_val == 'AND' else (
                             2
                             if operator_val == "OR"
-                            else (3 if operator_val == "NOT" else 4)
+                            else 3
                         ), "abstract", 1 if stem_lema == "Stemming" else 2 )
 
             show_results(output_data, search_type)
@@ -899,38 +701,6 @@ def show_results(output_data, search_type):
         st.info("No results found. Please try again.")
     else:
         st.info(f"Results shown for: {aa}")
-
-
-# Função para converter POS tags para o formato WordNet
-def get_wordnet_pos(treebank_tag):
-    if treebank_tag.startswith('J'):
-        return wordnet.ADJ
-    elif treebank_tag.startswith('V'):
-        return wordnet.VERB
-    elif treebank_tag.startswith('N'):
-        return wordnet.NOUN
-    elif treebank_tag.startswith('R'):
-        return wordnet.ADV
-    else:
-        return wordnet.NOUN  # Padrão para substantivo
-
-#Função para a lematização:
-def enhanced_lemmatize(text):
-    lemmatizer = WordNetLemmatizer()
-
-    # Tokenizar e obter POS tags
-    tokens = word_tokenize(text)
-    pos_tags = pos_tag(tokens)
-
-    lemmas = []
-    for token, tag in pos_tags:
-        # Obter a tag no formato WordNet
-        wn_tag = get_wordnet_pos(tag)
-        # Lematizar com a tag apropriada
-        lemma = lemmatizer.lemmatize(token, wn_tag)
-        lemmas.append(lemma)
-
-    return ' '.join(lemmas)
 
 
 if __name__ == '__main__':
