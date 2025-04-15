@@ -14,7 +14,7 @@ def idf(word, corpus):
 
 def TF_IDF(word, document, corpus):
     print(
-        f"{word} | TF: {tf(word, document):.4f}, IDF: {idf(word, corpus):.4f}, TF-IDF: {tf(word, document) * idf(word, corpus):.4f}")
+        f"{word} | TF: {tf(word, document):.4f}, IDF: {idf(word, corpus):.4f}, TF-IDF: {tf(word, document) }")
 
     return tf(word, document) #* idf(word, corpus) para ser linear
 
@@ -95,16 +95,6 @@ def calculate_similarities(query, corpus, word_set, word_to_index, doc_vectors):
 
 # Exemplo de uso integrado:
 def search_with_custom_tfidf(query, documents):
-    """
-    Exemplo completo de busca usando TF-IDF e cosseno implementados manualmente
-
-    Args:
-        query: str - String de busca
-        documents: list - Lista de documentos (strings)
-
-    Returns:
-        list - Pares (índice_documento, similaridade) ordenados por relevância
-    """
     # Pré-processamento (tokenização já feita)
     tokenized_docs = [doc.split() for doc in documents]
     tokenized_query = query.split()

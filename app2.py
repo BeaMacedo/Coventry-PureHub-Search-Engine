@@ -44,7 +44,89 @@ def enhanced_lemmatize(text):
     return ' '.join(lemmas)
 
 
-def search_with_operators(input_text, search_type, stem_lema):
+#Número de vezes que a palavra aparece dividido pelo número de palavras no documento
+
+def tf(word, document):
+    return document.count(word) / len(document)
+
+def idf(word, corpus):
+    count_of_documents = len(corpus) + 1
+    count_of_documents_with_word = sum([1 for doc in corpus if word in doc]) + 1
+    IDF = np.log10(count_of_documents/count_of_documents_with_word) + 1
+    return IDF
+
+def TF_IDF(word, document, corpus):
+    print(
+        f"{word} | TF: {tf(word, document):.4f}, IDF: {idf(word, corpus):.4f}, TF-IDF: {tf(word, document) }")
+
+    return tf(word, document) #* idf(word, corpus) para ser linear
+
+def tf_idf_vectorizer(corpus):
+    if type(corpus[0]) == str:
+        corpus = [corpus]  # se for uma só linha de palavras
+
+    word_set = list(set(sum(corpus, []))) #lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+    word_to_index = {word: i for i, word in enumerate(word_set)}  #mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
+    num_words = len(word_set) #Número total de palavras únicas (dimensão dos vetores)
+
+    word_vectors = [] #onde vão ser guardados os vetores TF-IDF de cada documento
+    for document in corpus:
+        # for our new document create a new word vector
+        new_word_vector = [0 for i in range(num_words)] #cria vetor de 0 do tamanho do vocabulário
+        for word in document:
+            # get the score
+            tf_idf_score = TF_IDF(word, document, corpus)
+            # next get the index for this word in our word vector
+            word_index = word_to_index[word] #para saber em que posição do vetor deve ficar o score
+            # populate the vector
+            new_word_vector[word_index] = tf_idf_score #coloca o score na posição do vetor certo
+
+        word_vectors.append(new_word_vector)
+
+    return word_vectors
+
+
+import numpy as np
+
+
+def cosine_similarity(query_vector, doc_vectors):
+    # Converter para arrays numpy para operações vetorizadas
+    query_array = np.array(query_vector)
+    doc_matrix = np.array(doc_vectors)
+
+    # Calcular produto escalar (dot product) entre query e cada documento
+    dot_products = np.dot(doc_matrix, query_array)
+
+    # Calcular normas (magnitudes) dos vetores
+    query_norm = np.linalg.norm(query_array)
+    doc_norms = np.linalg.norm(doc_matrix, axis=1)
+
+    # Calcular similaridades (evitando divisão por zero)
+    similarities = []
+    for dot, doc_norm in zip(dot_products, doc_norms):
+        if query_norm == 0 or doc_norm == 0:
+            similarities.append(0.0)
+        else:
+            similarities.append(dot / (query_norm * doc_norm)) #produto escalar dos vetores a dividir pelo produto das normas
+
+    return similarities
+
+
+def query_to_vector(query, word_to_index, corpus):
+
+    num_words = len(word_to_index)
+    query_vector = [0.0] * num_words
+
+    for word in query:
+        if word in word_to_index:
+            # Calcula TF-IDF apenas para palavras presentes no vocabulário
+            tf_idf_score = TF_IDF(word, query, corpus)
+            query_vector[word_to_index[word]] = tf_idf_score
+
+    return query_vector
+
+
+def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn function"):
     # Configuração dos índices
     if stem_lema == 2:  # lematização
         pub_index = pub_index_lemma
@@ -144,14 +226,28 @@ def search_with_operators(input_text, search_type, stem_lema):
                 docs_texts.append(pub_abstract_list_first[doc_id])
             doc_ids.append(doc_id)
 
-        # Calcular TF-IDF e similaridade do cosseno
-        tfidf_matrix = tfidf.fit_transform(docs_texts)
-        query_vector = tfidf.transform([query_text]) #transforma um texto (neste caso uma query) num vetor TF-IDF
-        cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+        if rank_by == "Sklearn function":
+            # Calcular TF-IDF e similaridade do cosseno
+            tfidf_matrix = tfidf.fit_transform(docs_texts)
+            query_vector = tfidf.transform([query_text]) #transforma um texto (neste caso uma query) num vetor TF-IDF
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
 
-        # Atribuir scores aos documentos
-        for idx, doc_id in enumerate(doc_ids): # idx corresponde à posição daquele documento na lista cosine_scores
-            output_data[doc_id] = cosine_scores[idx][0]
+            # Atribuir scores aos documentos
+            for idx, doc_id in enumerate(doc_ids): # idx corresponde à posição daquele documento na lista cosine_scores
+                output_data[doc_id] = cosine_scores[idx][0]
+        else:
+            word_set = list(set(sum(docs_texts,[])))  # lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+            word_to_index = {word: i for i, word in enumerate(
+                word_set)}  # mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
+            doc_vectors = tf_idf_vectorizer(docs_texts)  # Calcula os vetores TF-IDF manualmente
+
+            # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
+            query_vec = query_to_vector(query_text, word_to_index, docs_texts)
+            cosine_output = cosine_similarity(query_vec, doc_vectors)
+
+            # Armazena a similaridade de cosseno no dicionário de resultados
+            for idx, doc_id in enumerate(doc_ids):
+                output_data[doc_id] = cosine_output[idx]
 
     return output_data
 
@@ -263,7 +359,7 @@ with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
     pub_group_links = ujson.load(f)
 
 
-def search_data(input_text, operator_val, search_type, stem_lema): #função de procura
+def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklearn function"): #função de procura
 
     if stem_lema == 2:  # se lematizacao
         pub_index = pub_index_lemma
@@ -324,14 +420,28 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                     elif search_type == "abstract":
                         temp_file.append(pub_abstract_list_first[j])
 
-                temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
-                #print(f"stem_word_file_or: {stem_word_file}")
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
+                if rank_by == "Sklearn function":
+                    temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
+                    #print(f"stem_word_file_or: {stem_word_file}")
+                    cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
 
-                #print(f"pointer_or:{pointer}")
-                for j in pointer:
-                    output_data[j] = cosine_output[pointer.index(j)] #primeira posição em que um indice de um documento aparece, para nao haver duplicados
-                print(f"output_data_or:{output_data}")
+                    #print(f"pointer_or:{pointer}")
+                    for j in pointer:
+                        output_data[j] = cosine_output[pointer.index(j)] #primeira posição em que um indice de um documento aparece, para nao haver duplicados
+                    #print(f"output_data_or:{output_data}")
+
+                else:
+                    word_set = list(set(sum(temp_file, []))) #lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+                    word_to_index = {word: i for i, word in enumerate(word_set)}  #mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
+                    doc_vectors = tf_idf_vectorizer(temp_file)  # Calcula os vetores TF-IDF manualmente
+
+                    # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
+                    query_vec = query_to_vector(stem_word_file, word_to_index, temp_file)
+                    cosine_output = cosine_similarity(query_vec, doc_vectors)
+
+                    # Armazena a similaridade de cosseno no dicionário de resultados
+                    for j in pointer:
+                        output_data[j] = cosine_output[pointer.index(j)]
 
     elif operator_val == 1:  # operador and
         #se quiser colocar a query toda poderia criar uma lista antes do ciclo for como  stem_word_file2 = [] e colocar todas as palavras da query e usá-la depois com tfidf.transform
@@ -414,12 +524,26 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                     elif search_type == "abstract":
                         temp_file.append(pub_abstract_list_first[j])
 
-                temp_file = tfidf.fit_transform(temp_file)
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-                print(f"cosine_output2:{stem_word_file}")
-                print(f"pointer_and:{pointer}")
-                for j in pointer:
-                    output_data[j] = cosine_output[pointer.index(j)]
+                if rank_by == "Sklearn function":
+                    temp_file = tfidf.fit_transform(temp_file)
+                    cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+
+                    for j in pointer:
+                        output_data[j] = cosine_output[pointer.index(j)]
+
+                else:
+                    word_set = list(set(sum(temp_file, []))) #lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+                    word_to_index = {word: i for i, word in enumerate(word_set)}  #mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
+                    doc_vectors = tf_idf_vectorizer(temp_file)  # Calcula os vetores TF-IDF manualmente
+
+                    # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
+                    query_vec = query_to_vector(stem_word_file, word_to_index, temp_file)
+                    cosine_output = cosine_similarity(query_vec, doc_vectors)
+
+                    # Armazena a similaridade de cosseno no dicionário de resultados
+                    for j in pointer:
+                        output_data[j] = cosine_output[pointer.index(j)]
+
 
     elif operator_val == 3:  # PESQUISA COM OPERADORES LOGICOS
 
@@ -591,6 +715,13 @@ def app():  # interface Streamlit
         key="stem_lema_input",
         horizontal=True,
     )
+    rank_by = st.radio(
+        "Rank with:",
+        ["Sklearn function", "Use Custom tf-idf"],
+        index=0,
+        key="rank_system",
+        horizontal=True,
+    )
 
     if st.button("SEARCH"):
         if search_type == "Publications":
@@ -598,7 +729,8 @@ def app():  # interface Streamlit
                             2
                             if operator_val == "OR"
                             else 3
-                        ), "publication",  1 if stem_lema == "Stemming" else 2 )
+                        ), "publication",  1 if stem_lema == "Stemming" else 2,
+                                      rank_by)
 
             show_results(output_data, search_type)
         elif search_type == "Authors":
@@ -606,7 +738,8 @@ def app():  # interface Streamlit
                             2
                             if operator_val == "OR"
                             else 3
-                        ), "author", 1 if stem_lema == "Stemming" else 2 )
+                        ), "author", 1 if stem_lema == "Stemming" else 2,
+                                      rank_by)
 
             show_results(output_data, search_type)
         elif search_type == "Abstracts":
@@ -614,7 +747,8 @@ def app():  # interface Streamlit
                             2
                             if operator_val == "OR"
                             else 3
-                        ), "abstract", 1 if stem_lema == "Stemming" else 2 )
+                        ), "abstract", 1 if stem_lema == "Stemming" else 2,
+                                      rank_by)
 
             show_results(output_data, search_type)
         elif search_type == "LIB Mathematics Support Centre Publications Search":
