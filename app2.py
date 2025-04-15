@@ -328,12 +328,13 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                         temp_file.append(pub_abstract_list_first[j])
 
                 temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
+                print(f"stem_word_file_or: {stem_word_file}")
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
 
-                #print(pointer)
+                print(f"pointer_or:{pointer}")
                 for j in pointer:
-                    output_data[j] = cosine_output[pointer.index(j)]
-                print(output_data)
+                    output_data[j] = cosine_output[pointer.index(j)] #primeira posição em que um indice de um documento aparece, para nao haver duplicados
+                print(f"output_data_or:{output_data}")
 
     elif operator_val == 1:  # operador and
         input_text = input_text.lower().split()
@@ -398,6 +399,7 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                 print(f"stem_word_file: {stem_word_file}")
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
                 print("cosine_output1: ", cosine_output)
+                print(f"list(match_word):{list(match_word)}")
                 for j in list(match_word):
                     output_data[j] = cosine_output[list(match_word).index(j)]
                     print(f"output_data: {output_data}")
@@ -417,6 +419,7 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                 temp_file = tfidf.fit_transform(temp_file)
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
                 print(f"cosine_output2:{stem_word_file}")
+                print(f"pointer_and:{pointer}")
                 for j in pointer:
                     output_data[j] = cosine_output[pointer.index(j)]
 
