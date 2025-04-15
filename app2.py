@@ -2,19 +2,15 @@ import nltk
 import streamlit as st #cria a interface web
 from PIL import Image
 import ujson
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet
 from nltk import pos_tag
-import math as m
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
-from collections import defaultdict
 
 # Função para converter POS tags para o formato WordNet
 def get_wordnet_pos(treebank_tag):
@@ -71,7 +67,8 @@ def search_with_operators(input_text, search_type, stem_lema):
     # 1. Processar NOTs primeiro
     docs_to_exclude = set()
     for term in not_terms:
-        stemmed_term = process_term(term, stem_lema)
+        stemmed_term = process_term(term, stem_lema) #aplica stemming ou lematização ao termo
+        #vai ver todos os documentos onde esse termo aparece e guarda-os em docs_to_exclude
         if search_type == "publication" and stemmed_term in pub_index:
             docs_to_exclude.update(set(pub_index[stemmed_term]))
         elif search_type == "author" and stemmed_term in author_index:
@@ -80,13 +77,13 @@ def search_with_operators(input_text, search_type, stem_lema):
             docs_to_exclude.update(set(abstract_index[stemmed_term]))
 
     # 2. Processar OR groups
-    all_matching_docs = set()
+    all_matching_docs = set() #começa como conjunto vazio
 
-    for group in and_groups:
+    for group in and_groups: #cada grupo é uma lista de termos unidos por and
         # Ordenar termos por frequência (do mais raro para o mais comum)
         terms_with_freq = []
         for term in group:
-            stemmed_term = process_term(term, stem_lema)
+            stemmed_term = process_term(term, stem_lema) #aplica stemming ou lematização ao termo
             freq = 0
             if search_type == "publication" and stemmed_term in pub_index:
                 freq = len(pub_index[stemmed_term])
@@ -113,12 +110,12 @@ def search_with_operators(input_text, search_type, stem_lema):
             if group_docs is None:
                 group_docs = term_docs
             else:
-                group_docs.intersection_update(term_docs)
+                group_docs.intersection_update(term_docs) #Vai reduzindo group_docs aos documentos que contém todos os termos do grupo (AND)
                 if not group_docs:  # Early exit se conjunto vazio
                     break
 
         if group_docs:
-            all_matching_docs.update(group_docs)
+            all_matching_docs.update(group_docs) #adiciona todos os elementos de group_docs ao conjunto
 
     # 3. Aplicar NOTs
     final_docs = all_matching_docs - docs_to_exclude
@@ -149,11 +146,11 @@ def search_with_operators(input_text, search_type, stem_lema):
 
         # Calcular TF-IDF e similaridade do cosseno
         tfidf_matrix = tfidf.fit_transform(docs_texts)
-        query_vector = tfidf.transform([query_text])
+        query_vector = tfidf.transform([query_text]) #transforma um texto (neste caso uma query) num vetor TF-IDF
         cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
 
         # Atribuir scores aos documentos
-        for idx, doc_id in enumerate(doc_ids):
+        for idx, doc_id in enumerate(doc_ids): # idx corresponde à posição daquele documento na lista cosine_scores
             output_data[doc_id] = cosine_scores[idx][0]
 
     return output_data
@@ -180,9 +177,9 @@ def parse_query(query):
 
     # Processar NOTs
     not_terms = []
-    not_pattern = re.compile(r'not\s+([^\s]+)')
-    for match in not_pattern.finditer(query):
-        not_terms.append(match.group(1))
+    not_pattern = re.compile(r'not\s+([^\s]+)') #encontra termos/palavras precedidos pela palavra not
+    for match in not_pattern.finditer(query): #percorre todas as ocorrencias da regex na query
+        not_terms.append(match.group(1)) #adiciona essas ocorrencias à lista not_terms
 
     # Remover NOTs para processar o resto
     query_without_nots = not_pattern.sub('', query)
@@ -304,7 +301,7 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                 stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
 
             stem_word_file.append(stem_temp.strip())
-            print(f"stem_word {stem_word_file}")
+            #print(f"stem_word {stem_word_file}")
 
             if search_type == "publication" and pub_index.get(stem_word_file[0].strip()): #Se for "publication", pesquisa no pub_index
                 pointer = pub_index.get(stem_word_file[0].strip())
@@ -314,7 +311,7 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
             elif search_type == "abstract" and abstract_index.get(stem_word_file[0].strip()): #Se for "author", pesquisa no author_index
                 pointer = abstract_index.get(stem_word_file[0].strip())
 
-            #print(pointer)
+            print(f"pointeragora:{pointer}")
 
             if len(pointer) == 0: #se nao encontrou nada no indice, sem resultados
                 output_data = {}
@@ -328,15 +325,16 @@ def search_data(input_text, operator_val, search_type, stem_lema): #função de 
                         temp_file.append(pub_abstract_list_first[j])
 
                 temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
-                print(f"stem_word_file_or: {stem_word_file}")
+                #print(f"stem_word_file_or: {stem_word_file}")
                 cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
 
-                print(f"pointer_or:{pointer}")
+                #print(f"pointer_or:{pointer}")
                 for j in pointer:
                     output_data[j] = cosine_output[pointer.index(j)] #primeira posição em que um indice de um documento aparece, para nao haver duplicados
                 print(f"output_data_or:{output_data}")
 
     elif operator_val == 1:  # operador and
+        #se quiser colocar a query toda poderia criar uma lista antes do ciclo for como  stem_word_file2 = [] e colocar todas as palavras da query e usá-la depois com tfidf.transform
         input_text = input_text.lower().split()
         pointer = [] #documentos encontrados
         match_word = [] # Apenas os documentos que contêm TODAS as palavras (interseção)
