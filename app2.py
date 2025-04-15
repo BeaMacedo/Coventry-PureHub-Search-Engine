@@ -236,13 +236,15 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
             for idx, doc_id in enumerate(doc_ids): # idx corresponde à posição daquele documento na lista cosine_scores
                 output_data[doc_id] = cosine_scores[idx][0]
         else:
-            word_set = list(set(sum(docs_texts,[])))  # lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+            tokenized_docs = [doc.split() for doc in docs_texts]
+            word_set = list(set(sum(tokenized_docs,[])))  # lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
             word_to_index = {word: i for i, word in enumerate(
                 word_set)}  # mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
             doc_vectors = tf_idf_vectorizer(docs_texts)  # Calcula os vetores TF-IDF manualmente
 
             # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
-            query_vec = query_to_vector(query_text, word_to_index, docs_texts)
+            query_tokens = query_text.split()
+            query_vec = query_to_vector(query_tokens, word_to_index, docs_texts)
             cosine_output = cosine_similarity(query_vec, doc_vectors)
 
             # Armazena a similaridade de cosseno no dicionário de resultados
@@ -431,12 +433,15 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                     #print(f"output_data_or:{output_data}")
 
                 else:
-                    word_set = list(set(sum(temp_file, []))) #lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+                    # Tokenizar os documentos (split em palavras)
+                    tokenized_docs = [doc.split() for doc in temp_file]
+                    word_set = list(set(sum(tokenized_docs, []))) #lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
                     word_to_index = {word: i for i, word in enumerate(word_set)}  #mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
                     doc_vectors = tf_idf_vectorizer(temp_file)  # Calcula os vetores TF-IDF manualmente
 
                     # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
-                    query_vec = query_to_vector(stem_word_file, word_to_index, temp_file)
+                    query_tokens = stem_word_file[0].split()
+                    query_vec = query_to_vector(query_tokens, word_to_index, temp_file)
                     cosine_output = cosine_similarity(query_vec, doc_vectors)
 
                     # Armazena a similaridade de cosseno no dicionário de resultados
@@ -532,12 +537,16 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                         output_data[j] = cosine_output[pointer.index(j)]
 
                 else:
-                    word_set = list(set(sum(temp_file, []))) #lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
-                    word_to_index = {word: i for i, word in enumerate(word_set)}  #mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
+                    tokenized_docs = [doc.split() for doc in temp_file]
+                    word_set = list(set(sum(tokenized_docs,
+                                            [])))  # lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+                    word_to_index = {word: i for i, word in enumerate(
+                        word_set)}  # mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
                     doc_vectors = tf_idf_vectorizer(temp_file)  # Calcula os vetores TF-IDF manualmente
 
                     # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
-                    query_vec = query_to_vector(stem_word_file, word_to_index, temp_file)
+                    query_tokens = stem_word_file[0].split()
+                    query_vec = query_to_vector(query_tokens, word_to_index, temp_file)
                     cosine_output = cosine_similarity(query_vec, doc_vectors)
 
                     # Armazena a similaridade de cosseno no dicionário de resultados
