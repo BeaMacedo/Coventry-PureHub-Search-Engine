@@ -457,6 +457,7 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
             full_query = ' '.join(all_stem_words).split()
             query_vec = query_to_vector(full_query, word_to_index, tokenized_docs)
             doc_vectors = tf_idf_vectorizer(tokenized_docs)
+            print(f"doc_vectors: {doc_vectors}")
 
             cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
             print(f"cosine_output: {cosine_output}")
@@ -603,14 +604,21 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                     i =0
                     matrix = []
                     for elem in temp_file:
+                        #print(f"elem no temp_file: {elem}")
                         elem = tf_idf_vectorizer(elem.split())[0]
+                        #print(f"elem_vector: {elem}, len(elem): {len(elem)}")
                         matrix.append(elem)
+                        #print("matrix dentro do for:",matrix)
                         i+=1
+                    print(f"matrix:{matrix}")
+                    print(f"Tamanho da matriz:{len(matrix)}")
 
                     mat_inv = tf_idf_vectorizer(stem_word_file)
+                    print(f"mat_inv(query)={mat_inv}") #mat_inv(query)=[[1.0]] vai dar sempre so um valor pq é uma apalvra e vai ser sempre 1 pq aparece na query de pesquisa obviamente
                     cos_out = cos_sim(matrix, mat_inv) #similaridade entre cada vetor do documento e a query
                     for j in pointer:
                         output_data[j] = cos_out[pointer.index(j)]
+                        print(f"output_data {j}: {output_data[j]} ")
 
     elif operator_val == 1:  # operador and
         #se quiser colocar a query toda poderia criar uma lista antes do ciclo for como  stem_word_file2 = [] e colocar todas as palavras da query e usá-la depois com tfidf.transform
@@ -672,14 +680,27 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                     elif search_type == "abstract":
                         temp_file.append(pub_abstract_list_first[j])
                         #print(f"temp_file: {temp_file}")
-                temp_file = tfidf.fit_transform(temp_file)
-                print(f"stem_word_file: {stem_word_file}")
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-                print("cosine_output1: ", cosine_output)
-                print(f"list(match_word):{list(match_word)}")
-                for j in list(match_word):
-                    output_data[j] = cosine_output[list(match_word).index(j)]
-                    print(f"output_data: {output_data}")
+                if rank_by == "Sklearn function":
+                    temp_file = tfidf.fit_transform(temp_file)
+                    #print(f"stem_word_file: {stem_word_file}")
+                    cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+                    #print("cosine_output1: ", cosine_output)
+                    #print(f"list(match_word):{list(match_word)}")
+                    for j in list(match_word):
+                        output_data[j] = cosine_output[list(match_word).index(j)]
+                        #print(f"output_data: {output_data}")
+                else:
+                    i = 0
+                    matrix = []
+                    for elem in temp_file:
+                        elem = tf_idf_vectorizer(elem.split())[0] #lista de vetores tf-idf para cada documento, com as palabvras unicas de cada documento, logo as listas nao vao ter o mesmo tamanho
+                        matrix.append(elem)
+                        i += 1
+                    mat_inv = tf_idf_vectorizer(stem_word_file) #vai ser sempre 1 pq a palavra vai estar lá? E aqui vai sempre comparar com a ultima palavra.
+                    cos_out = cos_sim(matrix, mat_inv)
+                    for j in list(match_word):
+                        output_data[j] = cos_out[list(match_word).index(j)]
+
 
         else:
             if len(pointer) == 0:
@@ -703,14 +724,13 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                     i = 0
                     matrix = []
                     for elem in temp_file:
-                        elem = tf_idf_vectorizer(elem.split())[0]
+                        elem = tf_idf_vectorizer(elem.split())[0] #lista de vetores tf-idf para cada documento, com as palabvras unicas de cada documento, logo as listas nao vao ter o mesmo tamanho
                         matrix.append(elem)
                         i += 1
-                    mat_inv = tf_idf_vectorizer(stem_word_file)
+                    mat_inv = tf_idf_vectorizer(stem_word_file) #vai ser sempre 1 pq a palavra vai estar lá?
                     cos_out = cos_sim(matrix, mat_inv)
                     for j in list(match_word):
                         output_data[j] = cos_out[list(match_word).index(j)]
-
 
     elif operator_val == 3:  # PESQUISA COM OPERADORES LOGICOS
 
