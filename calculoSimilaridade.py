@@ -121,6 +121,9 @@ documents = [
     "ninguém mencionou quintal ou gato aqui"
 ]
 
+for elem in documents:
+    print(elem.split())
+
 query = "cão sofá"
 
 results = search_with_custom_tfidf(query, documents)

@@ -561,6 +561,150 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
     return output_data
 
 
+def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Sklearn function"):
+    if stem_lema == 2:  # se lematizacao
+        pub_index = pub_index_lemma
+        pub_list_first = pub_list_first_lemma
+        abstract_index = pub_abstract_index_lemma
+        pub_abstract_list_first = pub_abstract_list_first_lemma
+        author_index = author_index_lemma
+        author_list_first = author_list_first_lemma
+    else:
+        pub_index = pub_index_stem
+        pub_list_first = pub_list_first_stem
+        abstract_index = pub_abstract_index_stem
+        pub_abstract_list_first = pub_abstract_list_first_stem
+        author_index = author_index_stem
+        author_list_first = author_list_first_stem
+
+    output_data = {}
+
+    # Processa toda a query primeiro
+    all_stem_words = []
+    processed_terms = []
+
+    # Pré-processamento de todos os termos da query
+    for token in input_text.lower().split():
+        word_list = word_tokenize(token)
+        stem_temp = ""
+
+        if stem_lema == 1:  # stemming
+            for x in word_list:
+                if x not in stop_words:
+                    stem_temp += stemmer.stem(x) + " "
+        else:  # lematização
+            stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+
+        stem_word = stem_temp.strip()
+        if stem_word:  # só adiciona se não for string vazia
+            all_stem_words.append(stem_word)
+            processed_terms.append(stem_word)
+
+    if operator_val == 2:  # operador OR
+        pointer = []
+        for term in processed_terms:
+            if search_type == "publication" and pub_index.get(term):
+                pointer.extend(pub_index.get(term))
+            elif search_type == "author" and author_index.get(term):
+                pointer.extend(author_index.get(term))
+            elif search_type == "abstract" and abstract_index.get(term):
+                pointer.extend(abstract_index.get(term))
+
+        pointer = list(set(pointer))  # remove duplicados
+
+        if len(pointer) == 0:
+            return {}
+
+        # Coletar textos dos documentos encontrados
+        temp_file = []
+        for j in pointer:
+            if search_type == "publication":
+                temp_file.append(pub_list_first[j])
+            elif search_type == "author":
+                temp_file.append(author_list_first[j])
+            elif search_type == "abstract":
+                temp_file.append(pub_abstract_list_first[j])
+
+        if rank_by == "Sklearn function":
+            tfidf_matrix = tfidf.fit_transform(temp_file)
+            full_query = ' '.join(all_stem_words)
+            query_vector = tfidf.transform([full_query])
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+            for idx, doc_id in enumerate(pointer):
+                output_data[doc_id] = cosine_scores[idx][0]
+        else:
+            tokenized_docs = [doc.split() for doc in temp_file]
+            word_set = list(set(sum(tokenized_docs, [])))
+            word_to_index = {word: i for i, word in enumerate(word_set)}
+
+            full_query = ' '.join(all_stem_words).split()
+            query_vec = query_to_vector(full_query, word_to_index, tokenized_docs)
+            doc_vectors = tf_idf_vectorizer(tokenized_docs)
+
+            cosine_output = cosine_similarity(query_vec, doc_vectors)
+            for idx, doc_id in enumerate(pointer):
+                output_data[doc_id] = cosine_output[idx]
+
+    elif operator_val == 1:  # operador AND
+        pointer = None
+        for term in processed_terms:
+            term_docs = set()
+            if search_type == "publication" and pub_index.get(term):
+                term_docs = set(pub_index.get(term))
+            elif search_type == "author" and author_index.get(term):
+                term_docs = set(author_index.get(term))
+            elif search_type == "abstract" and abstract_index.get(term):
+                term_docs = set(abstract_index.get(term))
+
+            if pointer is None:
+                pointer = term_docs
+            else:
+                pointer.intersection_update(term_docs)
+                if not pointer:  # early exit se conjunto vazio
+                    break
+
+        if not pointer:  # nenhum documento contém todos os termos
+            return {}
+
+        pointer = list(pointer)
+
+        # Coletar textos dos documentos encontrados
+        temp_file = []
+        for j in pointer:
+            if search_type == "publication":
+                temp_file.append(pub_list_first[j])
+            elif search_type == "author":
+                temp_file.append(author_list_first[j])
+            elif search_type == "abstract":
+                temp_file.append(pub_abstract_list_first[j])
+
+        if rank_by == "Sklearn function":
+            tfidf_matrix = tfidf.fit_transform(temp_file)
+            full_query = ' '.join(all_stem_words)
+            query_vector = tfidf.transform([full_query])
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+            for idx, doc_id in enumerate(pointer):
+                output_data[doc_id] = cosine_scores[idx][0]
+        else:
+            tokenized_docs = [doc.split() for doc in temp_file]
+            word_set = list(set(sum(tokenized_docs, [])))
+            word_to_index = {word: i for i, word in enumerate(word_set)}
+
+            full_query = ' '.join(all_stem_words).split()
+            query_vec = query_to_vector(full_query, word_to_index, tokenized_docs)
+            doc_vectors = tf_idf_vectorizer(tokenized_docs)
+
+            cosine_output = cosine_similarity(query_vec, doc_vectors)
+            for idx, doc_id in enumerate(pointer):
+                output_data[doc_id] = cosine_output[idx]
+
+    elif operator_val == 3:  # operadores lógicos (NOT, AND, OR)
+        output_data = search_with_operators(input_text, search_type, stem_lema, rank_by)
+
+    return output_data
+
 #-----------------para indices pdf do grupo de pesquisa LIB
 # Função para carregar os índices mapeados de dic_indices_pdfs.json
 def load_pdf_index_mapping():
