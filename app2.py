@@ -919,7 +919,7 @@ def app():  # interface Streamlit
                         ), "publication",  1 if stem_lema == "Stemming" else 2,
                                       rank_by)
 
-            show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+            show_results(output_data, search_type)
         elif search_type == "Authors":
             output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
                             2
@@ -928,7 +928,7 @@ def app():  # interface Streamlit
                         ), "author", 1 if stem_lema == "Stemming" else 2,
                                       rank_by)
 
-            show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+            show_results(output_data, search_type)
         elif search_type == "Abstracts":
             output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
                             2
