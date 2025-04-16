@@ -56,8 +56,7 @@ def idf(word, corpus):
     return IDF
 
 def TF_IDF(word, document, corpus):
-    print(
-        f"{word} | TF: {tf(word, document):.4f}, IDF: {idf(word, corpus):.4f}, TF-IDF: {tf(word, document) }")
+    #print(f"{word} | TF: {tf(word, document):.4f}, IDF: {idf(word, corpus):.4f}, TF-IDF: {tf(word, document) }")
 
     return tf(word, document) #* idf(word, corpus) para ser linear
 
@@ -415,12 +414,14 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
         for term in processed_terms:
             if search_type == "publication" and pub_index.get(term):
                 pointer.extend(pub_index.get(term))
+                print("pointer_in", pointer)
             elif search_type == "author" and author_index.get(term):
                 pointer.extend(author_index.get(term))
             elif search_type == "abstract" and abstract_index.get(term):
                 pointer.extend(abstract_index.get(term))
 
         pointer = list(set(pointer))  # remove duplicados
+        print(f"pointer_or:{pointer}")
 
         if len(pointer) == 0:
             return {}
@@ -437,14 +438,16 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
 
         if rank_by == "Sklearn function":
             tfidf_matrix = tfidf.fit_transform(temp_file)
-            print(f"all_stem_words: {all_stem_words}")
+            #print(f"all_stem_words: {all_stem_words}")
             full_query = ' '.join(all_stem_words)
-            print(f"fully_query: {full_query}")
+            #print(f"fully_query: {full_query}")
             query_vector = tfidf.transform([full_query])
             cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
-            print(f"cosine_scores: {cosine_scores}")
+            #print(f"cosine_scores: {cosine_scores}")
 
             for idx, doc_id in enumerate(pointer):
+                #print(f"doc_id: {doc_id}, idx: {idx}")
+                print(f"cosine_scores[idx]: {cosine_scores[idx]}")
                 output_data[doc_id] = cosine_scores[idx][0]
         else:
             tokenized_docs = [doc.split() for doc in temp_file]
@@ -456,7 +459,10 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
             doc_vectors = tf_idf_vectorizer(tokenized_docs)
 
             cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+            print(f"cosine_output: {cosine_output}")
             for idx, doc_id in enumerate(pointer):
+                print(f"doc_id: {doc_id}, idx: {idx}")
+                print(f"cosine_scores[idx]: {cosine_output[idx]}")
                 output_data[doc_id] = cosine_output[idx]
 
     elif operator_val == 1:  # operador AND
@@ -474,6 +480,7 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
                 pointer = term_docs
                 print(f"pointer: {pointer}")
             else:
+                print(f"term_docs: {term_docs}")
                 pointer.intersection_update(term_docs)
                 print(f"pointer after intersection: {pointer}")
                 if not pointer:  # early exit se conjunto vazio
