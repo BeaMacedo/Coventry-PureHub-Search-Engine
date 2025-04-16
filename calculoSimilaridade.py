@@ -13,8 +13,7 @@ def idf(word, corpus):
     return IDF
 
 def TF_IDF(word, document, corpus):
-    print(
-        f"{word} | TF: {tf(word, document):.4f}, IDF: {idf(word, corpus):.4f}, TF-IDF: {tf(word, document) }")
+    #print(f"{word} | TF: {tf(word, document):.4f}, IDF: {idf(word, corpus):.4f}, TF-IDF: {tf(word, document) }")
 
     return tf(word, document) #* idf(word, corpus) para ser linear
 
@@ -23,7 +22,9 @@ def tf_idf_vectorizer(corpus):
         corpus = [corpus]  # se for uma só linha de palavras
 
     word_set = list(set(sum(corpus, []))) #lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+    print("word_set: ", word_set)
     word_to_index = {word: i for i, word in enumerate(word_set)}  #mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
+    print(f"word_to_index: {word_to_index}")
     num_words = len(word_set) #Número total de palavras únicas (dimensão dos vetores)
 
     word_vectors = [] #onde vão ser guardados os vetores TF-IDF de cada documento
@@ -39,6 +40,7 @@ def tf_idf_vectorizer(corpus):
             new_word_vector[word_index] = tf_idf_score #coloca o score na posição do vetor certo
 
         word_vectors.append(new_word_vector)
+    print(f"word_vectors: {word_vectors}")
 
     return word_vectors
 
@@ -57,15 +59,17 @@ def cosine_similarity(query_vector, doc_vectors):
     # Calcular normas (magnitudes) dos vetores
     query_norm = np.linalg.norm(query_array)
     doc_norms = np.linalg.norm(doc_matrix, axis=1)
+    print(f"query_norm: {query_norm}, doc_norms: {doc_norms}")
 
     # Calcular similaridades (evitando divisão por zero)
     similarities = []
-    for dot, doc_norm in zip(dot_products, doc_norms):
+    for (dot, doc_norm) in zip(dot_products, doc_norms):
         if query_norm == 0 or doc_norm == 0:
             similarities.append(0.0)
         else:
             similarities.append(dot / (query_norm * doc_norm)) #produto escalar dos vetores a dividir pelo produto das normas
 
+    print(f"similarities: {similarities}")
     return similarities
 
 
@@ -78,8 +82,10 @@ def query_to_vector(query, word_to_index, corpus):
         if word in word_to_index:
             # Calcula TF-IDF apenas para palavras presentes no vocabulário
             tf_idf_score = TF_IDF(word, query, corpus)
+            print("Aqui:", tf_idf_score )
             query_vector[word_to_index[word]] = tf_idf_score
 
+    print(f"query_vector: {query_vector}")
     return query_vector
 
 
@@ -92,11 +98,11 @@ def calculate_similarities(query, corpus, word_set, word_to_index, doc_vectors):
     # Calcular similaridades
     return cosine_similarity(query_vec, doc_vectors)
 
-
 # Exemplo de uso integrado:
 def search_with_custom_tfidf(query, documents):
     # Pré-processamento (tokenização já feita)
     tokenized_docs = [doc.split() for doc in documents]
+    print(f"tokenized_docs: {tokenized_docs}")
     tokenized_query = query.split()
 
     # Construir vocabulário e vetores
@@ -115,7 +121,7 @@ def search_with_custom_tfidf(query, documents):
 # === TESTES ===
 documents = [
     "o gato preto dorme no sofá",
-    "o cão ladra no quintal",
+    "o cão cão ladra no quintal",
     "o rato corre no campo",
     "gato e cão são animais de estimação",
     "ninguém mencionou quintal ou gato aqui"
@@ -124,7 +130,7 @@ documents = [
 for elem in documents:
     print(elem.split())
 
-query = "cão sofá"
+query = "cão sofá "
 
 results = search_with_custom_tfidf(query, documents)
 
