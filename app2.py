@@ -983,7 +983,7 @@ def show_LIB_results(output_data):
         st.info(f"Results shown for: {aa}")
 
 
-def show_results2(output_data, search_type):
+def show_results2(output_data, search_type):   #função inicial
     aa = 0
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True) #Ordena os resultados pela pontuação de similaridade
     print(f"rank is {rank_sorting}")
