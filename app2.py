@@ -919,7 +919,7 @@ def app():  # interface Streamlit
                         ), "publication",  1 if stem_lema == "Stemming" else 2,
                                       rank_by)
 
-            show_results(output_data, search_type)
+            show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
         elif search_type == "Authors":
             output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
                             2
@@ -928,7 +928,7 @@ def app():  # interface Streamlit
                         ), "author", 1 if stem_lema == "Stemming" else 2,
                                       rank_by)
 
-            show_results(output_data, search_type)
+            show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
         elif search_type == "Abstracts":
             output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
                             2
@@ -937,7 +937,7 @@ def app():  # interface Streamlit
                         ), "abstract", 1 if stem_lema == "Stemming" else 2,
                                       rank_by)
 
-            show_results(output_data, search_type)
+            show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
         elif search_type == "LIB Mathematics Support Centre Publications Search":
             output_data = search_LIB_data(input_text, 1 if operator_val == 'Exact' else 2)
             show_LIB_results(output_data)
@@ -983,7 +983,7 @@ def show_LIB_results(output_data):
         st.info(f"Results shown for: {aa}")
 
 
-def show_results(output_data, search_type):
+def show_results2(output_data, search_type):
     aa = 0
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True) #Ordena os resultados pela pontuação de similaridade
     print(f"rank is {rank_sorting}")
@@ -1024,6 +1024,115 @@ def show_results(output_data, search_type):
     else:
         st.info(f"Results shown for: {aa}")
 
+
+def show_results(output_data, search_type, input_text=None, stem_lema=None):
+    aa = 0
+    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
+
+    st.info(f"Showing results for: {len(rank_sorting)}")
+
+    # Processar termos de busca apenas para abstracts
+    search_terms = []
+    if search_type == "Abstracts" and input_text:
+        # Processar a query da mesma forma que foi feito na pesquisa
+        if stem_lema == 1:  # stemming
+            for term in input_text.lower().split():
+                if term not in stop_words:
+                    search_terms.append(stemmer.stem(term))
+        else:  # lematização
+            search_terms = enhanced_lemmatize(input_text).split()
+
+    N_cards_per_row = 3
+    for n_row, (id_val, ranking) in enumerate(rank_sorting):
+        i = n_row % N_cards_per_row
+        if i == 0:
+            st.write("---")
+            cols = st.columns(N_cards_per_row, gap="large")
+
+        with cols[n_row % N_cards_per_row]:
+            st.caption(f"{pub_date[id_val].strip()}")
+
+            if search_type == "Publications":
+                content = pub_name[id_val].strip()
+                st.markdown(f"**{pub_cu_author[id_val].strip()}**")
+                st.markdown(f"*{content}*")
+
+            elif search_type == "Authors":
+                st.markdown(f"**{author_name[id_val].strip()}**")
+                st.markdown(f"*{pub_name[id_val].strip()}*")
+
+            elif search_type == "Abstracts":
+                abstract = pub_abstract[id_val]
+                st.markdown(f"**{author_name[id_val].strip()}**")
+                st.markdown(f"*{pub_name[id_val].strip()}*")
+
+                # Função para encontrar e destacar os termos de busca no abstract
+                def highlight_search_terms(text, terms):
+                    if not terms:
+                        return text[:200] + "..." if len(text) > 200 else text
+
+                    # Encontrar todas as posições dos termos (com stemming/lematização aplicado)
+                    positions = []
+                    text_lower = text.lower()
+
+                    for term in terms:
+                        term_lower = term.lower()
+                        start = 0
+                        while True:
+                            pos = text_lower.find(term_lower, start)
+                            if pos == -1:
+                                break
+                            positions.append((pos, pos + len(term)))
+                            start = pos + len(term)
+
+                    if not positions:
+                        return f"(Search terms not found) {text[:200]}..." if len(text) > 200 else text
+
+                    # Ordenar as posições
+                    positions.sort()
+
+                    # Criar snippets em torno dos termos encontrados
+                    snippets = []
+                    last_end = 0
+
+                    for start, end in positions:
+                        if start > last_end:
+                            snippets.append(text[last_end:start])
+
+                        # Destacar o termo encontrado
+                        snippets.append(f"**{text[start:end]}**")
+                        last_end = end
+
+                    if last_end < len(text):
+                        snippets.append(text[last_end:])
+
+                    highlighted_text = "".join(snippets)
+
+                    # Limitar o tamanho do resultado
+                    if len(highlighted_text) > 300:
+                        # Encontrar a primeira ocorrência de um termo destacado
+                        first_highlight = highlighted_text.find("**")
+                        if first_highlight > 100:
+                            start = max(0, first_highlight - 50)
+                            highlighted_text = "..." + highlighted_text[start:start + 300] + "..."
+                        else:
+                            highlighted_text = highlighted_text[:300] + "..."
+
+                    return highlighted_text
+
+                content = highlight_search_terms(abstract, search_terms)
+                st.markdown(content)
+
+            # Links
+            if id_val < len(pub_url) and pub_url[id_val].strip():
+                st.markdown(f"[View on website]({pub_url[id_val]})", unsafe_allow_html=True)
+            if id_val < len(pub_linksPDF) and pub_linksPDF[id_val].strip():
+                st.markdown(f"[Download PDF]({pub_linksPDF[id_val]})", unsafe_allow_html=True)
+
+        aa += 1
+
+    if aa == 0:
+        st.info("No results found. Please try again.")
 
 if __name__ == '__main__':
     app()
