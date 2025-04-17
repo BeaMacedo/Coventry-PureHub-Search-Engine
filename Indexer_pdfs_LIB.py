@@ -1,8 +1,9 @@
-# Descarregar PDFs e processar texto imediatamente
+#Descarregar pdfs da area LIB Mathematics Support Centre
 import os
 import json
 import time
 import shutil
+import re
 import pdfplumber
 import ujson
 from selenium import webdriver
@@ -10,27 +11,47 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
+from nltk.corpus import stopwords, wordnet
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+from nltk import pos_tag
+from collections import defaultdict
 import nltk
 
-nltk.download('stopwords')
-nltk.download('punkt')
 
-# NLTK config
 stop_words = set(stopwords.words('english'))
 stemmer = PorterStemmer()
+lemmatizer = WordNetLemmatizer()
 
+# Função para converter POS tags para o formato WordNet
+def get_wordnet_pos(treebank_tag):
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN  # Padrão para substantivo
 
-#Descarregar pdfs da area LIB Mathematics Support Centre
-import os
-import json
-import time
-import shutil
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+#Função para a lematização:
+def enhanced_lemmatize(text):
+    lemmatizer = WordNetLemmatizer()
+
+    # Tokenizar e obter POS tags
+    tokens = word_tokenize(text)
+    pos_tags = pos_tag(tokens)
+
+    lemmas = []
+    for token, tag in pos_tags:
+        # Obter a tag no formato WordNet
+        wn_tag = get_wordnet_pos(tag)
+        # Lematizar com a tag apropriada
+        lemma = lemmatizer.lemmatize(token, wn_tag)
+        lemmas.append(lemma)
+
+    return ' '.join(lemmas)
 
 
 def configurar_navegador():
@@ -63,32 +84,56 @@ def extrair_texto_pdf(caminho_pdf):
         texto = ""
         with pdfplumber.open(caminho_pdf) as pdf:
             for pagina in pdf.pages:
-                texto += pagina.extract_text() or ""
-        return texto
+                texto_pagina = pagina.extract_text(
+                    x_tolerance=1,
+                    y_tolerance=1,
+                    layout=False,
+                    x_density=7.25,
+                    y_density=13
+                )
+                if texto_pagina:
+                    texto_pagina = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto_pagina)
+                    texto += texto_pagina + "\n"
+        return texto.strip()
     except Exception as e:
         print(f"Erro ao processar o PDF {caminho_pdf}: {e}")
         return ""
 
 import re
 def limpar_texto(texto):
-    # Limpeza inicial
-    texto = re.sub(r'http\S+|www\S+|https\S+', '', texto)  # Remove URLs
-    texto = re.sub(r'\S+@\S+', '', texto)  # Remove emails
+    if not texto:
+        return ""
+    # Remove URLs (http, https, www)
+    texto = re.sub(r'http\S+|www\S+|https\S+', '', texto)
+    # Remove endereços de email
+    texto = re.sub(r'\S+@\S+', '', texto)
+    # Remove informações de copyright, DOI e ISBN
+    texto = re.sub(r'©.*|DOI:.*|ISBN:.*', '', texto)
+    # Junta palavras que foram quebradas por hífen no final da linha
+    texto = re.sub(r'-\n(\w+)', r'\1', texto)
+    # Remove todos os números
+    texto = re.sub(r'\d+', ' ', texto)
+    # Substitui múltiplos espaços/quebras de linha por um único espaço
+    texto = re.sub(r'\s+', ' ', texto).strip()
     #texto = re.sub(r'[^\w\s]|_', ' ', texto)  # Remove caracteres especiais
-    texto = re.sub(r'\d+', ' ', texto)  # Remove números
-    texto = re.sub(r'\s+', ' ', texto).strip()  # Normaliza espaços
 
-    # Tokenização e stemming
+    return texto
+
+def processar_texto_stem(texto):
     palavras = word_tokenize(texto.lower())
     palavras_filtradas = [
         stemmer.stem(palavra)
         for palavra in palavras
         if (palavra not in stop_words and
             len(palavra) > 2 and
-            palavra.isalpha())
+            palavra.isalpha() and
+            not palavra.isnumeric())
     ]
-
     return ' '.join(palavras_filtradas)
+
+def processar_texto_lemma(texto):
+    texto_limpo = limpar_texto(texto)
+    return enhanced_lemmatize(texto_limpo)
 
 
 def descarregar_pdfs_LIB():
@@ -103,8 +148,12 @@ def descarregar_pdfs_LIB():
     count = 0
 
     textos_limpos = []
+    textos_stem = []
+    textos_lemma = []
     dic_indices_pdfs = {}
-    index_invertido = {}
+    dic_titulospdf_indiceI = {} #vai armazenar os indices iniciais e o nome do artigo da publicação para identificação mais rapida
+    index_invertido_stem = {}
+    index_invertido_lemma = {}
 
     for idx, pub in enumerate(publicacoes):
         grupos = pub.get("research_group", [])
@@ -156,20 +205,32 @@ def descarregar_pdfs_LIB():
                 # --- Processamento do texto diretamente aqui ---
                 texto_extraido = extrair_texto_pdf(caminho_final)
 
-                # Pré-limpeza antes de remover caracteres especiais
-                texto_extraido = re.sub(r'-\n', '', texto_extraido)  # Junta palavras quebradas
-                texto_extraido = re.sub(r'\n', ' ', texto_extraido)  # Substitui quebras por espaços
 
                 texto_semcar = re.sub(r'[^\w\s]|_', ' ', texto_extraido)  # Remove caracteres especiais
                 texto_limpo = limpar_texto(texto_semcar)
-                textos_limpos.append(texto_limpo)
-                dic_indices_pdfs[count] = idx
+                textos_limpos.append(texto_limpo) #texto limpo para depois mostrar na pesquisa da app
 
-                for palavra in texto_limpo.split():
-                    if palavra not in index_invertido:
-                        index_invertido[palavra] = [idx]
+                texto_stem = processar_texto_stem(texto_limpo)
+                textos_stem.append(texto_stem)
+
+                texto_lemma = processar_texto_lemma(texto_limpo)
+                textos_lemma.append(texto_lemma)
+
+                dic_indices_pdfs[count] = idx
+                dic_titulospdf_indiceI[count] = titulo
+
+                for palavra in texto_stem.split():
+                    if palavra not in index_invertido_stem:
+                        index_invertido_stem[palavra] = [idx]
                     else:
-                        index_invertido[palavra].append(idx)
+                        index_invertido_stem[palavra].append(idx)
+
+                for palavra in texto_stem.split():
+                    if palavra not in index_invertido_lemma:
+                        index_invertido_lemma[palavra] = [idx]
+                    else:
+                        index_invertido_lemma[palavra].append(idx)
+
 
                 print(f"✅ Texto processado e indexado. idx original: {idx}, índice PDF: {count}")
                 count += 1
@@ -187,17 +248,28 @@ def descarregar_pdfs_LIB():
         pass
 
     # Salvar resultados
-    with open('pdf_list_stemmed.json', 'w', encoding='utf-8') as f:
+    with open('pdf_texts.json', 'w', encoding='utf-8') as f:
         ujson.dump(textos_limpos, f, indent=2)
 
-    with open('pdfs_indexed_dictionary.json', 'w', encoding='utf-8') as f:
-        ujson.dump(index_invertido, f, indent=2)
+    with open('pdf_list_stemmed.json', 'w', encoding='utf-8') as f:
+        ujson.dump(textos_stem, f, indent=2)
+
+    with open('pdf_list_lemma.json', 'w', encoding='utf-8') as f:
+        ujson.dump(textos_lemma, f, indent=2)
+
+    with open('pdfs_indexed_dictionary_stemm.json', 'w', encoding='utf-8') as f:
+        ujson.dump(index_invertido_stem, f, indent=2)
+
+    with open('pdfs_indexed_dictionary_lema.json', 'w', encoding='utf-8') as f:
+        ujson.dump(index_invertido_lemma, f, indent=2)
 
     with open("dic_indices_pdfs.json", "w", encoding="utf-8") as f:
         json.dump(dic_indices_pdfs, f, ensure_ascii=False, indent=4)
 
+    with open("dic_titulospdf_indiceI.json", "w", encoding="utf-8") as f:
+        json.dump(dic_titulospdf_indiceI, f, ensure_ascii=False, indent=4)
+
     print(f"\n[✅] Processo concluído! {count} PDFs do {grupo_alvo} foram baixados e processados.")
 
 
-# Executar
 descarregar_pdfs_LIB()

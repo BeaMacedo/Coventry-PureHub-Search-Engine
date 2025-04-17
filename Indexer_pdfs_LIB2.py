@@ -1,4 +1,4 @@
-#Descarregar pdfs da area LIB Mathematics Support Centre
+'''#Descarregar pdfs da area LIB Mathematics Support Centre
 import os
 import json
 import time
@@ -343,3 +343,4 @@ def processar_indices():
 
 
 processar_indices()
+'''

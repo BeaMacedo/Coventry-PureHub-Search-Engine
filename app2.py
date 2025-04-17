@@ -748,10 +748,28 @@ def load_pdf_index_mapping():
     map_lib_to_pdf = {v: int(k) for k, v in map_pdf_to_lib.items()}
     return map_lib_to_pdf
 
+with open('pdfs_indexed_dictionary_stemm.json', 'r', encoding='utf-8') as f:
+    lib_index_stemm = ujson.load(f)
+with open('pdfs_indexed_dictionary_lema.json', 'r', encoding='utf-8') as f:
+    lib_index_lema = ujson.load(f)
+with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
+    lib_texts_stemm = ujson.load(f)
+with open('pdf_list_lemma.json', 'r', encoding='utf-8') as f:
+    lib_texts_lema = ujson.load(f)
+
 # Função de pesquisa
-def search_LIB_data(input_text, operator_val):
+def search_LIB_data(input_text, operator_val,stem_lema): #1º função
 
     output_data = {}
+
+    if stem_lema == 2:  # se lematizacao
+        lib_index = lib_index_lema
+        lib_texts = lib_texts_lema
+
+    else:
+        lib_index = lib_index_stemm
+        #print(f"LIB_index: {LIB_index}")
+        lib_texts = lib_texts_stemm
 
     # Carregar o mapeamento de índices (apenas uma vez)
     map_lib_to_pdf = load_pdf_index_mapping()
@@ -771,32 +789,38 @@ def search_LIB_data(input_text, operator_val):
             temp_file = []
             word_list = word_tokenize(token)
 
-            for x in word_list:
-                if x not in stop_words:
-                    stem_temp += stemmer.stem(x) + " "
-            stem_word_file.append(stem_temp)  # Palavras pré-processadas do input
+            if stem_lema == 1:
+                for x in word_list:
+                    if x not in stop_words:
+                        stem_temp += stemmer.stem(x) + " "
+
+            elif stem_lema == 2:
+                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+
+            stem_word_file.append(stem_temp.strip())
 
             # Verificar se existe o índice para o token processado
             if lib_index.get(stem_word_file[0].strip()):
                 pointer = lib_index.get(stem_word_file[0].strip())
 
-        if len(pointer) == 0:
-            return {}
-        else:
-            # Usar o mapeamento de índice para PDFs
-            for j in pointer:
-                pdf_index = map_lib_to_pdf.get(j)
-                if pdf_index is not None:
-                    temp_file.append(lib_texts[pdf_index])
+            if len(pointer) == 0:
+                return {}
+            else:
+                # Usar o mapeamento de índice para PDFs
+                for j in pointer:
+                    pdf_index = map_lib_to_pdf.get(j)
+                    if pdf_index is not None:
+                        temp_file.append(lib_texts[pdf_index])
 
-            temp_file = tfidf.fit_transform(temp_file)
-            cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+                temp_file = tfidf.fit_transform(temp_file)
+                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
-            # Atribuir os resultados ao output_data
-            for j in pointer:
-                pdf_index = map_lib_to_pdf.get(j)
-                if pdf_index is not None:
-                    output_data[j] = cosine_output[pointer.index(j)]
+                # Atribuir os resultados ao output_data
+                for j in pointer:
+                    pdf_index = map_lib_to_pdf.get(j)
+                    if pdf_index is not None:
+                        output_data[j] = cosine_output[pointer.index(j)]
+                        print(f"j, output_data[j]: , {j},{output_data[j]}")
 
     # Para o operador AND (caso contrário)
     else:  # Operador AND
@@ -814,10 +838,16 @@ def search_LIB_data(input_text, operator_val):
             stem_word_file = []
             word_list = word_tokenize(token)
             stem_temp = ""
-            for x in word_list:
-                if x not in stop_words:
-                    stem_temp += stemmer.stem(x) + " "
-            stem_word_file.append(stem_temp)
+
+            if stem_lema == 1:
+                for x in word_list:
+                    if x not in stop_words:
+                        stem_temp += stemmer.stem(x) + " "
+
+            elif stem_lema == 2:
+                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+
+            stem_word_file.append(stem_temp.strip())
 
             # Verificar se existe o índice para o token processado
             if lib_index.get(stem_word_file[0].strip()):
@@ -870,143 +900,6 @@ def search_LIB_data(input_text, operator_val):
                     pdf_index = map_lib_to_pdf.get(j)
                     if pdf_index is not None:
                         output_data[j] = cosine_output[pointer.index(j)]
-
-    return output_data
-
-with open('pdfs_indexed_dictionary_stem2.json', 'r', encoding='utf-8') as f:
-    lib_index_stem = ujson.load(f)
-with open('pdfs_indexed_dictionary_lemma2.json', 'r', encoding='utf-8') as f:
-    lib_index_lemma = ujson.load(f)
-with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
-    lib_texts_stem = ujson.load(f)
-with open('pdf_list_lemma.json', 'r', encoding='utf-8') as f:
-    lib_texts_lemma = ujson.load(f)
-
-
-def search_LIB_data2(input_text, operator_val,stem_lema):
-
-    output_data = {}
-
-    if stem_lema == 2:  # se lematizacao
-        LIB_index = lib_index_lemma
-        LIB_texts = lib_texts_lemma
-
-    else:
-        LIB_index = lib_texts_stem
-        LIB_texts = lib_texts_stem
-
-    # Para o operador OR (operator_val == 2)
-    if operator_val == 2:  # Operador OR
-        input_text = input_text.lower().split()
-        pointer = []
-
-        for token in input_text:
-            if len(input_text) < 2:
-                st.warning("Please enter at least 2 words to apply the operator.")
-                break
-
-            stem_temp = ""
-            stem_word_file = []
-            temp_file = []
-            word_list = word_tokenize(token)
-
-            if stem_lema == 1:
-                for x in word_list:
-                    if x not in stop_words:
-                        stem_temp += stemmer.stem(x) + " "
-
-            elif stem_lema == 2:
-                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
-
-            stem_word_file.append(stem_temp.strip())
-
-            # Verificar se existe o índice para o token processado
-            if LIB_index.get(stem_word_file[0].strip()):
-                pointer = LIB_index.get(stem_word_file[0].strip())
-
-        if len(pointer) == 0:
-            return {}
-        else:
-            # Usar o mapeamento de índice para PDFs
-            for j in pointer:
-                temp_file.append(LIB_texts[j])
-
-            temp_file = tfidf.fit_transform(temp_file)
-            cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-
-            # Atribuir os resultados ao output_data
-            for j in pointer:
-                output_data[j] = cosine_output[pointer.index(j)]
-
-    # Para o operador AND (caso contrário)
-    else:  # Operador AND
-        input_text = input_text.lower().split()
-        pointer = []
-        match_word = []
-
-        for token in input_text:
-            if len(input_text) < 2:
-                st.warning("Please enter at least 2 words to apply the operator.")
-                break
-
-            temp_file = []
-            set2 = set()
-            stem_word_file = []
-            word_list = word_tokenize(token)
-            stem_temp = ""
-            if stem_lema == 1:
-                for x in word_list:
-                    if x not in stop_words:
-                        stem_temp += stemmer.stem(x) + " "
-
-            elif stem_lema == 2:
-                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
-
-            stem_word_file.append(stem_temp.strip())
-
-            # Verificar se existe o índice para o token processado
-            if LIB_index.get(stem_word_file[0].strip()):
-                set1 = set(LIB_index.get(stem_word_file[0].strip()))
-                pointer.extend(list(set1))
-
-            # Atualizar a lista match_word para documentos que atendem a todos os critérios
-            if match_word == []:
-                match_word = list({z for z in pointer if z in set2 or (set2.add(z) or False)})
-            else:
-                match_word.extend(list(set1))
-                match_word = list({z for z in match_word if z in set2 or (set2.add(z) or False)})
-
-        if len(input_text) > 1:
-            match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)}
-
-            if len(match_word) == 0:
-                output_data = {}
-            else:
-                # Usar o mapeamento de índice para PDFs
-                for j in list(match_word):
-                    temp_file.append(LIB_texts[j])
-
-                temp_file = tfidf.fit_transform(temp_file)
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-
-                # Atribuir os resultados ao output_data
-                for j in list(match_word):
-                    output_data[j] = cosine_output[list(match_word).index(j)]
-
-        else:
-            if len(pointer) == 0:
-                output_data = {}
-            else:
-                # Usar o mapeamento de índice para PDFs
-                for j in pointer:
-                    temp_file.append(LIB_texts[j])
-
-                temp_file = tfidf.fit_transform(temp_file)
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-
-                # Atribuir os resultados ao output_data
-                for j in pointer:
-                    output_data[j] = cosine_output[pointer.index(j)]
 
     return output_data
 
@@ -1076,7 +969,7 @@ def app():  # interface Streamlit
 
             show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
         elif search_type == "LIB Mathematics Support Centre Publications Search":
-            output_data = search_LIB_data2(input_text, 1 if operator_val == 'AND' else (
+            output_data = search_LIB_data(input_text, 1 if operator_val == 'AND' else (
                             2
                             if operator_val == "OR"
                             else 3), 1 if stem_lema == "Stemming" else 2)
