@@ -11,6 +11,67 @@ from nltk import pos_tag
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
+import numpy as np
+
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
+
+# Set up the NLTK components
+stemmer = PorterStemmer()
+stop_words = stopwords.words('english')
+tfidf = TfidfVectorizer()
+lemmatizer = WordNetLemmatizer()
+
+# Load the data
+with open('publication_list_stemmed.json', 'r') as f:
+    pub_list_first_stem = ujson.load(f)
+with open('publication_list_lemma.json', 'r') as f:
+    pub_list_first_lemma = ujson.load(f)
+with open('publication_indexed_dictionary.json', 'r') as f: #{nome publicação:[0,1,5,..] publicações em que aparece}
+    pub_index_stem = ujson.load(f)
+with open('publication_indexed_dictionary_lemma.json', 'r') as f: #{nome publicação:[0,1,5,..] publicações em que aparece}
+    pub_index_lemma = ujson.load(f)
+with open('author_list_stemmed.json', 'r') as f:
+    author_list_first_stem = ujson.load(f)
+with open('author_list_lemma.json', 'r') as f:
+    author_list_first_lemma = ujson.load(f)
+with open('author_indexed_dictionary.json', 'r') as f:
+    author_index_stem = ujson.load(f)
+with open('author_indexed_dictionary_lemma.json', 'r') as f:
+    author_index_lemma = ujson.load(f)
+with open('publication_abstract_list_stemmed_abstract.json', 'r') as f:
+    pub_abstract_list_first_stem = ujson.load(f)
+with open('publication_abstract_list_lemma_abstract.json', 'r') as f:
+    pub_abstract_list_first_lemma = ujson.load(f)
+with open('publication_indexed_dictionary_abstract.json', 'r') as f:
+    pub_abstract_index_stem = ujson.load(f)
+with open('publication_indexed_dictionary_abstract_lemma.json', 'r') as f:
+    pub_abstract_index_lemma = ujson.load(f)
+# Carregar os índices específicos para o grupo LIB
+with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
+    lib_index = ujson.load(f)
+with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
+    lib_texts = ujson.load(f)
+with open('author_names.json', 'r') as f:
+    author_name = ujson.load(f)
+with open('pub_name.json', 'r') as f:
+    pub_name = ujson.load(f)
+with open('pub_url.json', 'r') as f:
+    pub_url = ujson.load(f)
+with open('pub_cu_author.json', 'r') as f:
+    pub_cu_author = ujson.load(f)
+with open('pub_date.json', 'r') as f:
+    pub_date = ujson.load(f)
+with open('pub_abstract.json', 'r') as f:
+    pub_abstract = ujson.load(f)
+with open('pub_groups.json', 'r') as f:
+    pub_groups = ujson.load(f)
+with open('pub_linksPDF.json', 'r') as f:
+    pub_linksPDF = ujson.load(f)
+with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
+    pub_group_links = ujson.load(f)
 
 # Função para converter POS tags para o formato WordNet
 def get_wordnet_pos(treebank_tag):
@@ -43,9 +104,7 @@ def enhanced_lemmatize(text):
 
     return ' '.join(lemmas)
 
-
 #Número de vezes que a palavra aparece dividido pelo número de palavras no documento
-
 def tf(word, document):
     return document.count(word) / len(document)
 
@@ -83,10 +142,6 @@ def tf_idf_vectorizer(corpus):
         word_vectors.append(new_word_vector)
 
     return word_vectors
-
-
-import numpy as np
-
 
 def costum_cosine_similarity(query_vector, doc_vectors):
     # Converter para arrays numpy para operações vetorizadas
@@ -132,7 +187,6 @@ def query_to_vector(query, word_to_index, corpus):
             query_vector[word_to_index[word]] = tf_idf_score
 
     return query_vector
-
 
 def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn function"):
     # Configuração dos índices
@@ -263,7 +317,6 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
 
     return output_data
 
-
 def process_term(term, stem_lema):
     # Processa um termo (stemming ou lematização)
     word_list = word_tokenize(term)
@@ -277,7 +330,6 @@ def process_term(term, stem_lema):
         stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
 
     return stem_temp.strip()
-
 
 def parse_query(query):
     # Processa a query e divide em partes AND, OR e NOT
@@ -308,69 +360,7 @@ def parse_query(query):
 
     return and_groups, not_terms
 
-nltk.download('stopwords')
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('wordnet')
-
-
-# Set up the NLTK components
-stemmer = PorterStemmer()
-stop_words = stopwords.words('english')
-tfidf = TfidfVectorizer()
-lemmatizer = WordNetLemmatizer()
-
-# Load the data
-with open('publication_list_stemmed.json', 'r') as f:
-    pub_list_first_stem = ujson.load(f)
-with open('publication_list_lemma.json', 'r') as f:
-    pub_list_first_lemma = ujson.load(f)
-with open('publication_indexed_dictionary.json', 'r') as f: #{nome publicação:[0,1,5,..] publicações em que aparece}
-    pub_index_stem = ujson.load(f)
-with open('publication_indexed_dictionary_lemma.json', 'r') as f: #{nome publicação:[0,1,5,..] publicações em que aparece}
-    pub_index_lemma = ujson.load(f)
-with open('author_list_stemmed.json', 'r') as f:
-    author_list_first_stem = ujson.load(f)
-with open('author_list_lemma.json', 'r') as f:
-    author_list_first_lemma = ujson.load(f)
-with open('author_indexed_dictionary.json', 'r') as f:
-    author_index_stem = ujson.load(f)
-with open('author_indexed_dictionary_lemma.json', 'r') as f:
-    author_index_lemma = ujson.load(f)
-with open('publication_abstract_list_stemmed_abstract.json', 'r') as f:
-    pub_abstract_list_first_stem = ujson.load(f)
-with open('publication_abstract_list_lemma_abstract.json', 'r') as f:
-    pub_abstract_list_first_lemma = ujson.load(f)
-with open('publication_indexed_dictionary_abstract.json', 'r') as f:
-    pub_abstract_index_stem = ujson.load(f)
-with open('publication_indexed_dictionary_abstract_lemma.json', 'r') as f:
-    pub_abstract_index_lemma = ujson.load(f)
-# Carregar os índices específicos para o grupo LIB
-with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
-    lib_index = ujson.load(f)
-with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
-    lib_texts = ujson.load(f)
-with open('author_names.json', 'r') as f:
-    author_name = ujson.load(f)
-with open('pub_name.json', 'r') as f:
-    pub_name = ujson.load(f)
-with open('pub_url.json', 'r') as f:
-    pub_url = ujson.load(f)
-with open('pub_cu_author.json', 'r') as f:
-    pub_cu_author = ujson.load(f)
-with open('pub_date.json', 'r') as f:
-    pub_date = ujson.load(f)
-with open('pub_abstract.json', 'r') as f:
-    pub_abstract = ujson.load(f)
-with open('pub_groups.json', 'r') as f:
-    pub_groups = ujson.load(f)
-with open('pub_linksPDF.json', 'r') as f:
-    pub_linksPDF = ujson.load(f)
-
-with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
-    pub_group_links = ujson.load(f)
-
-def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Sklearn function"): # a que eu fiz
+def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Sklearn function"): # a que eu fiz que considera a query toda
     if stem_lema == 2:  # se lematizacao
         pub_index = pub_index_lemma
         pub_list_first = pub_list_first_lemma
@@ -738,7 +728,6 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
 
     return output_data
 
-
 #-----------------para indices pdf do grupo de pesquisa LIB
 # Função para carregar os índices mapeados de dic_indices_pdfs.json
 def load_pdf_index_mapping():
@@ -758,7 +747,7 @@ with open('pdf_list_lemma.json', 'r', encoding='utf-8') as f:
     lib_texts_lema = ujson.load(f)
 
 # Função de pesquisa
-def search_LIB_data(input_text, operator_val,stem_lema): #1º função
+def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn function"): #1º função que segue o raciocinio da ja feita
 
     output_data = {}
 
@@ -812,18 +801,41 @@ def search_LIB_data(input_text, operator_val,stem_lema): #1º função
                     if pdf_index is not None:
                         temp_file.append(lib_texts[pdf_index])
 
-                temp_file = tfidf.fit_transform(temp_file)
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+                if rank_by == "Sklearn function":
+                    temp_file = tfidf.fit_transform(temp_file)
+                    cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
-                # Atribuir os resultados ao output_data
-                for j in pointer:
-                    pdf_index = map_lib_to_pdf.get(j)
-                    if pdf_index is not None:
-                        output_data[j] = cosine_output[pointer.index(j)]
-                        print(f"j, output_data[j]: , {j},{output_data[j]}")
+                    # Atribuir os resultados ao output_data
+                    for j in pointer:
+                        pdf_index = map_lib_to_pdf.get(j)
+                        if pdf_index is not None:
+                            output_data[j] = cosine_output[pointer.index(j)]
+                            print(f"j, output_data[j]: , {j},{output_data[j]}")
+                else:
+                    i =0
+                    matrix = []
+                    for elem in temp_file:
+                        #print(f"elem no temp_file: {elem}")
+                        elem = tf_idf_vectorizer(elem.split())[0]
+                        #print(f"elem_vector: {elem}, len(elem): {len(elem)}")
+                        matrix.append(elem)
+                        #print("matrix dentro do for:",matrix)
+                        i+=1
+                    #print(f"matrix:{matrix}")
+                    #print(f"Tamanho da matriz:{len(matrix)}")
+
+                    mat_inv = tf_idf_vectorizer(stem_word_file)
+                    #print(f"mat_inv(query)={mat_inv}") #mat_inv(query)=[[1.0]] vai dar sempre so um valor pq é uma palavra e vai ser sempre 1 pq aparece na query de pesquisa obviamente
+                    cos_out = cos_sim(matrix, mat_inv) #similaridade entre cada vetor do documento e a query
+                    for j in pointer:
+                        pdf_index = map_lib_to_pdf.get(j)
+                        if pdf_index is not None:
+                            output_data[j] = cos_out[pointer.index(j)]
+                            print(f"output_data {j}: {output_data[j]} ")
+
 
     # Para o operador AND (caso contrário)
-    else:  # Operador AND
+    elif operator_val == 2:  # operador OR
         input_text = input_text.lower().split()
         pointer = []
         match_word = []
@@ -873,34 +885,297 @@ def search_LIB_data(input_text, operator_val,stem_lema): #1º função
                     if pdf_index is not None:
                         temp_file.append(lib_texts[pdf_index])
 
-                temp_file = tfidf.fit_transform(temp_file)
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+                if rank_by == "Sklearn function":
+                    temp_file = tfidf.fit_transform(temp_file)
+                    cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
-                # Atribuir os resultados ao output_data
-                for j in list(match_word):
-                    pdf_index = map_lib_to_pdf.get(j)
-                    if pdf_index is not None:
-                        output_data[j] = cosine_output[list(match_word).index(j)]
+                    # Atribuir os resultados ao output_data
+                    for j in list(match_word):
+                        pdf_index = map_lib_to_pdf.get(j)
+                        if pdf_index is not None:
+                            output_data[j] = cosine_output[list(match_word).index(j)]
+                else:
+                    i = 0
+                    matrix = []
+                    for elem in temp_file:
+                        # print(f"elem no temp_file: {elem}")
+                        elem = tf_idf_vectorizer(elem.split())[0]
+                        # print(f"elem_vector: {elem}, len(elem): {len(elem)}")
+                        matrix.append(elem)
+                        # print("matrix dentro do for:",matrix)
+                        i += 1
+                    # print(f"matrix:{matrix}")
+                    # print(f"Tamanho da matriz:{len(matrix)}")
 
+                    mat_inv = tf_idf_vectorizer(stem_word_file)
+                    # print(f"mat_inv(query)={mat_inv}") #mat_inv(query)=[[1.0]] vai dar sempre so um valor pq é uma palavra e vai ser sempre 1 pq aparece na query de pesquisa obviamente
+                    cos_out = cos_sim(matrix, mat_inv)  # similaridade entre cada vetor do documento e a query
+                    for j in list(match_word):
+                        pdf_index = map_lib_to_pdf.get(j)
+                        if pdf_index is not None:
+                            output_data[j] = cos_out[list(match_word).index(j)]
+                            print(f"output_data {j}: {output_data[j]} ")
         else:
             if len(pointer) == 0:
                 output_data = {}
             else:
-                # Usar o mapeamento de índice para PDFs
-                for j in pointer:
+                for j in list(match_word):
                     pdf_index = map_lib_to_pdf.get(j)
                     if pdf_index is not None:
                         temp_file.append(lib_texts[pdf_index])
 
-                temp_file = tfidf.fit_transform(temp_file)
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
+                if rank_by == "Sklearn function":
+                    temp_file = tfidf.fit_transform(temp_file)
+                    cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
 
-                # Atribuir os resultados ao output_data
-                for j in pointer:
-                    pdf_index = map_lib_to_pdf.get(j)
-                    if pdf_index is not None:
-                        output_data[j] = cosine_output[pointer.index(j)]
+                    # Atribuir os resultados ao output_data
+                    for j in list(match_word):
+                        pdf_index = map_lib_to_pdf.get(j)
+                        if pdf_index is not None:
+                            output_data[j] = cosine_output[list(match_word).index(j)]
+                else:
+                    i = 0
+                    matrix = []
+                    for elem in temp_file:
+                        # print(f"elem no temp_file: {elem}")
+                        elem = tf_idf_vectorizer(elem.split())[0]
+                        # print(f"elem_vector: {elem}, len(elem): {len(elem)}")
+                        matrix.append(elem)
+                        # print("matrix dentro do for:",matrix)
+                        i += 1
+                    # print(f"matrix:{matrix}")
+                    # print(f"Tamanho da matriz:{len(matrix)}")
 
+                    mat_inv = tf_idf_vectorizer(stem_word_file)
+                    # print(f"mat_inv(query)={mat_inv}") #mat_inv(query)=[[1.0]] vai dar sempre so um valor pq é uma palavra e vai ser sempre 1 pq aparece na query de pesquisa obviamente
+                    cos_out = cos_sim(matrix, mat_inv)  # similaridade entre cada vetor do documento e a query
+                    for j in list(match_word):
+                        pdf_index = map_lib_to_pdf.get(j)
+                        if pdf_index is not None:
+                            output_data[j] = cos_out[list(match_word).index(j)]
+                            print(f"output_data {j}: {output_data[j]} ")
+
+    elif operator_val == 3:  # operadores lógicos (NOT, AND, OR)
+        # Usa a função search_with_operators_LIB já existente para operadores complexos
+        output_data = search_with_operators_LIB(input_text, stem_lema, rank_by)
+
+    return output_data
+
+def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn function"): #considera a query toda no calculo da similaridade
+    """
+    Função para pesquisa nos documentos LIB seguindo a mesma estrutura da search_data2
+    """
+    # Configuração dos índices conforme stem_lema
+    lib_index = lib_index_lema if stem_lema == 2 else lib_index_stemm
+    lib_texts = lib_texts_lema if stem_lema == 2 else lib_texts_stemm
+
+    output_data = {}
+
+    # Processa toda a query primeiro
+    all_stem_words = []
+    processed_terms = []
+
+    # Pré-processamento de todos os termos da query
+    for token in input_text.lower().split():
+        word_list = word_tokenize(token)
+        stem_temp = ""
+
+        if stem_lema == 1:  # stemming
+            for x in word_list:
+                if x not in stop_words:
+                    stem_temp += stemmer.stem(x) + " "
+        else:  # lematização
+            stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+
+        stem_word = stem_temp.strip()
+        if stem_word:  # só adiciona se não for string vazia
+            all_stem_words.append(stem_word)
+            processed_terms.append(stem_word)
+
+    if operator_val == 2:  # operador OR
+        pointer = []
+        for term in processed_terms:
+            if lib_index.get(term):
+                pointer.extend(lib_index.get(term))
+                print("pointer_in", pointer)
+
+        pointer = list(set(pointer))  # remove duplicados
+        print(f"pointer_or:{pointer}")
+
+        if len(pointer) == 0:
+            return {}
+
+        # Coletar textos dos documentos encontrados
+        temp_file = []
+        map_lib_to_pdf = load_pdf_index_mapping()
+        for j in pointer:
+            pdf_index = map_lib_to_pdf.get(str(j))
+            if pdf_index is not None:
+                temp_file.append(lib_texts[pdf_index])
+
+        if rank_by == "Sklearn function":
+            tfidf_matrix = tfidf.fit_transform(temp_file)
+            full_query = ' '.join(all_stem_words)
+            query_vector = tfidf.transform([full_query])
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+            for idx, doc_id in enumerate(pointer):
+                output_data[doc_id] = cosine_scores[idx][0]
+        else:
+            tokenized_docs = [doc.split() for doc in temp_file]
+            word_set = list(set(sum(tokenized_docs, [])))
+            word_to_index = {word: i for i, word in enumerate(word_set)}
+
+            full_query = ' '.join(all_stem_words).split()
+            query_vec = query_to_vector(full_query, word_to_index, tokenized_docs)
+            doc_vectors = tf_idf_vectorizer(tokenized_docs)
+
+            cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+            for idx, doc_id in enumerate(pointer):
+                output_data[doc_id] = cosine_output[idx]
+
+    elif operator_val == 1:  # operador AND
+        pointer = None
+        for term in processed_terms:
+            term_docs = set()
+            if lib_index.get(term):
+                term_docs = set(lib_index.get(term))
+
+            if pointer is None:
+                pointer = term_docs
+                print(f"pointer: {pointer}")
+            else:
+                print(f"term_docs: {term_docs}")
+                pointer.intersection_update(term_docs)
+                print(f"pointer after intersection: {pointer}")
+                if not pointer:  # early exit se conjunto vazio
+                    break
+
+        if not pointer:  # nenhum documento contém todos os termos
+            return {}
+
+        pointer = list(pointer)
+        print(f"pointer after list: {pointer}")
+
+        # Coletar textos dos documentos encontrados
+        temp_file = []
+        map_lib_to_pdf = load_pdf_index_mapping()
+        for j in pointer:
+            pdf_index = map_lib_to_pdf.get(str(j))
+            if pdf_index is not None:
+                temp_file.append(lib_texts[pdf_index])
+
+        if rank_by == "Sklearn function":
+            tfidf_matrix = tfidf.fit_transform(temp_file)
+            full_query = ' '.join(all_stem_words)
+            query_vector = tfidf.transform([full_query])
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+            for idx, doc_id in enumerate(pointer):
+                output_data[doc_id] = cosine_scores[idx][0]
+        else:
+            tokenized_docs = [doc.split() for doc in temp_file]
+            word_set = list(set(sum(tokenized_docs, [])))
+            word_to_index = {word: i for i, word in enumerate(word_set)}
+
+            full_query = ' '.join(all_stem_words).split()
+            query_vec = query_to_vector(full_query, word_to_index, tokenized_docs)
+            doc_vectors = tf_idf_vectorizer(tokenized_docs)
+
+            cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+            for idx, doc_id in enumerate(pointer):
+                output_data[doc_id] = cosine_output[idx]
+
+    elif operator_val == 3:  # operadores lógicos (NOT, AND, OR)
+        # Usa a função search_with_operators_LIB já existente para operadores complexos
+        output_data = search_with_operators_LIB(input_text, stem_lema, rank_by)
+
+    return output_data
+
+def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function"):
+    # Selecionar índices e textos conforme stem_lema
+    lib_index = lib_index_lema if stem_lema == 2 else lib_index_stemm
+    lib_texts = lib_texts_lema if stem_lema == 2 else lib_texts_stemm
+
+    map_lib_to_pdf = load_pdf_index_mapping()
+    and_groups, not_terms = parse_query(input_text)
+
+    # 1. Processar NOTs
+    docs_to_exclude = set()
+    for term in not_terms:
+        stemmed_term = process_term(term, stem_lema)
+        if stemmed_term in lib_index:
+            docs_to_exclude.update(set(lib_index[stemmed_term]))
+
+    # 2. Processar AND/OR
+    all_matching_docs = set()
+    for group in and_groups:
+        # Ordenar termos por frequência
+        terms_with_freq = [
+            (term, len(lib_index.get(process_term(term, stem_lema), [])))
+            for term in group
+        ]
+        terms_sorted = sorted(terms_with_freq, key=lambda x: x[1])
+
+        group_docs = None
+        for term, _ in terms_sorted:
+            stemmed_term = process_term(term, stem_lema)
+            term_docs = set(lib_index.get(stemmed_term, []))
+
+            if group_docs is None:
+                group_docs = term_docs
+            else:
+                group_docs.intersection_update(term_docs)
+                if not group_docs:
+                    break
+
+        if group_docs:
+            all_matching_docs.update(group_docs)
+
+    # 3. Aplicar NOTs
+    final_docs = [doc_id for doc_id in all_matching_docs - docs_to_exclude
+                  if doc_id in map_lib_to_pdf]
+
+    # 4. Calcular similaridade
+    output_data = {}
+    if final_docs:
+        query_terms = [
+            process_term(term, stem_lema)
+            for group in and_groups for term in group
+        ]
+        query_text = ' '.join(query_terms)
+
+        # Preparar documentos
+        docs_texts = []
+        valid_doc_ids = []
+        for doc_id in final_docs:
+            pdf_index = map_lib_to_pdf.get(doc_id)
+            if pdf_index is not None:
+                try:
+                    docs_texts.append(lib_texts[pdf_index])
+                    valid_doc_ids.append(doc_id)
+                except IndexError:
+                    continue
+
+        if rank_by == "Sklearn function":
+            tfidf_matrix = tfidf.fit_transform(docs_texts)
+            query_vector = tfidf.transform([query_text])
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+            for idx, doc_id in enumerate(valid_doc_ids):
+                output_data[doc_id] = cosine_scores[idx][0]
+        else:
+            tokenized_docs = [doc.split() for doc in docs_texts]
+            word_set = list(set(sum(tokenized_docs, [])))
+            word_to_index = {word: i for i, word in enumerate(word_set)}
+            doc_vectors = tf_idf_vectorizer(tokenized_docs)
+            query_vec = query_to_vector(query_text.split(), word_to_index, tokenized_docs)
+            cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+
+            for idx, doc_id in enumerate(valid_doc_ids):
+                output_data[doc_id] = cosine_output[idx]
+
+    print(f"output aqui:{output_data}")
     return output_data
 
 #inicial
@@ -970,18 +1245,17 @@ def app():  # interface Streamlit
             show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
         elif search_type == "LIB Mathematics Support Centre Publications Search":
             output_data = search_LIB_data(input_text, 1 if operator_val == 'AND' else (
-                            2
-                            if operator_val == "OR"
-                            else 3), 1 if stem_lema == "Stemming" else 2)
-
+                2
+                if operator_val == "OR"
+                else 3
+            ), 1 if stem_lema == "Stemming" else 2,
+                                       rank_by)
             show_LIB_results(output_data)
         else:
             output_data = {}
             show_results(output_data, search_type)
 
     st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)
-
-
 
 def show_LIB_results(output_data):
     # Carregar os dados completos
@@ -1015,7 +1289,6 @@ def show_LIB_results(output_data):
         st.info("No results found. Please try again.")
     else:
         st.info(f"Results shown for: {aa}")
-
 
 def show_results2(output_data, search_type):   #função inicial
     aa = 0
@@ -1057,7 +1330,6 @@ def show_results2(output_data, search_type):   #função inicial
         st.info("No results found. Please try again.")
     else:
         st.info(f"Results shown for: {aa}")
-
 
 def show_results(output_data, search_type, input_text=None, stem_lema=None):
     aa = 0

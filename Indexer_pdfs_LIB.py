@@ -103,6 +103,7 @@ import re
 def limpar_texto(texto):
     if not texto:
         return ""
+
     # Remove URLs (http, https, www)
     texto = re.sub(r'http\S+|www\S+|https\S+', '', texto)
     # Remove endereços de email
