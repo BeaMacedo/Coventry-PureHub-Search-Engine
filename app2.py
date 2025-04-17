@@ -1265,8 +1265,10 @@ def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function")
 
 def app():
     # Load and display image
-    image = Image.open('cire.png')
-    st.image(image)
+    image = Image.open('DEM_thumbnail.jpg')
+    col1, col2, col3 = st.columns([1, 2, 1])  # margem-esquerda, imagem, margem-direita
+    with col2:
+        st.image(image, width=300)
 
     # Botões para alternar entre modos de pesquisa
     if "mode" not in st.session_state:
@@ -1357,9 +1359,7 @@ def app():
             )
             show_LIB_results2(output_data)
 
-    # Rodapé
-    st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)
-
+    
 def show_LIB_results(output_data):
     # Carregar os dados completos
     aa = 0 #contador de resultados
