@@ -808,12 +808,14 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
                     # Atribuir os resultados ao output_data
                     for j in pointer:
                         pdf_index = map_lib_to_pdf.get(j)
+                        #print("pdf_index", pdf_index)
                         if pdf_index is not None:
                             output_data[j] = cosine_output[pointer.index(j)]
                             print(f"j, output_data[j]: , {j},{output_data[j]}")
                 else:
                     i =0
                     matrix = []
+                    #print(f"temp_file: {temp_file}")
                     for elem in temp_file:
                         #print(f"elem no temp_file: {elem}")
                         elem = tf_idf_vectorizer(elem.split())[0]
@@ -835,7 +837,7 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
 
 
     # Para o operador AND (caso contrário)
-    elif operator_val == 2:  # operador OR
+    elif operator_val == 1:  # operador OR
         input_text = input_text.lower().split()
         pointer = []
         match_word = []
@@ -875,7 +877,7 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
 
         if len(input_text) > 1:
             match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)}
-
+            #print(f"match_word: {match_word}")
             if len(match_word) == 0:
                 output_data = {}
             else:
@@ -969,6 +971,9 @@ def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn funct
     lib_index = lib_index_lema if stem_lema == 2 else lib_index_stemm
     lib_texts = lib_texts_lema if stem_lema == 2 else lib_texts_stemm
 
+    # Carregar o mapeamento de índices (apenas uma vez)
+    map_lib_to_pdf = load_pdf_index_mapping()
+
     output_data = {}
 
     # Processa toda a query primeiro
@@ -1007,11 +1012,12 @@ def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn funct
 
         # Coletar textos dos documentos encontrados
         temp_file = []
-        map_lib_to_pdf = load_pdf_index_mapping()
         for j in pointer:
-            pdf_index = map_lib_to_pdf.get(str(j))
+            pdf_index = map_lib_to_pdf.get(j)
+            print(f"pdf_index:{pdf_index}")
             if pdf_index is not None:
                 temp_file.append(lib_texts[pdf_index])
+        print(f"temp_file :{temp_file }")
 
         if rank_by == "Sklearn function":
             tfidf_matrix = tfidf.fit_transform(temp_file)
@@ -1061,7 +1067,7 @@ def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn funct
         temp_file = []
         map_lib_to_pdf = load_pdf_index_mapping()
         for j in pointer:
-            pdf_index = map_lib_to_pdf.get(str(j))
+            pdf_index = map_lib_to_pdf.get(j)
             if pdf_index is not None:
                 temp_file.append(lib_texts[pdf_index])
 
@@ -1244,7 +1250,7 @@ def app():  # interface Streamlit
 
             show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
         elif search_type == "LIB Mathematics Support Centre Publications Search":
-            output_data = search_LIB_data(input_text, 1 if operator_val == 'AND' else (
+            output_data = search_LIB_data2(input_text, 1 if operator_val == 'AND' else (
                 2
                 if operator_val == "OR"
                 else 3
