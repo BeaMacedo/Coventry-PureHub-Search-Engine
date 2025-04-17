@@ -139,3 +139,9 @@ for doc_id, score in results:
     print(f"📄 Documento {doc_id} | Score: {score:.4f}")
     print(f"   → {documents[doc_id]}\n")
 
+import ujson
+with open('scraper_results.json', 'r') as f1, open('scraper_results_with_abstracts.json', 'r') as f2:
+    original = ujson.load(f1)
+    updated = ujson.load(f2)
+    print("Original:", len(original))
+    print("Atualizado:", len(updated))

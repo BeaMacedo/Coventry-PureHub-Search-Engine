@@ -53,7 +53,6 @@ def enhanced_lemmatize(text):
 
     return ' '.join(lemmas)
 
-
 def configurar_navegador():
     chrome_options = Options()
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
@@ -72,7 +71,6 @@ def configurar_navegador():
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
     return driver, temp_dir
-
 
 def sanitize_filename(filename, max_length=100):
     invalid_chars = '<>:"/\\|?*'
@@ -110,7 +108,7 @@ def limpar_texto(texto):
     texto = re.sub(r'\S+@\S+', '', texto)
     # Remove informações de copyright, DOI e ISBN
     texto = re.sub(r'©.*|DOI:.*|ISBN:.*', '', texto)
-    # Junta palavras que foram quebradas por hífen no final da linha
+    # Junta palavras que foram separadas por hífen no final da linha
     texto = re.sub(r'-\n(\w+)', r'\1', texto)
     # Remove todos os números
     texto = re.sub(r'\d+', ' ', texto)
@@ -125,17 +123,23 @@ def processar_texto_stem(texto):
     palavras_filtradas = [
         stemmer.stem(palavra)
         for palavra in palavras
-        if (palavra not in stop_words and
-            len(palavra) > 2 and
-            palavra.isalpha() and
-            not palavra.isnumeric())
+        if palavra not in stop_words
     ]
     return ' '.join(palavras_filtradas)
 
 def processar_texto_lemma(texto):
-    texto_limpo = limpar_texto(texto)
-    return enhanced_lemmatize(texto_limpo)
+    return enhanced_lemmatize(texto)
 
+def remover_referencias(texto):
+    # Encontra a palavra 'references' no texto, ignorando case
+    pos_references = texto.lower().find('references')
+
+    if pos_references != -1:
+        # Se a palavra 'references' for encontrada, retorna o texto antes dela
+        return texto[:pos_references]
+
+    # Retorna o texto original se a palavra 'references' não for encontrada
+    return texto
 
 def descarregar_pdfs_LIB():
     with open("scraper_results_groups_links.json", "r", encoding="utf-8") as f:
@@ -203,9 +207,12 @@ def descarregar_pdfs_LIB():
                     print(f"[✔] Salvo (nome curto): {titulo_curto}")
                     caminho_final = caminho_curto
 
+
                 # --- Processamento do texto diretamente aqui ---
                 texto_extraido = extrair_texto_pdf(caminho_final)
 
+                #texto_semrefs = remover_referencias(texto_extraido)
+                #texto_semcar = re.sub(r'[^\w\s]|_', ' ', texto_semrefs)  # Remove caracteres especiais
 
                 texto_semcar = re.sub(r'[^\w\s]|_', ' ', texto_extraido)  # Remove caracteres especiais
                 texto_limpo = limpar_texto(texto_semcar)
@@ -226,7 +233,7 @@ def descarregar_pdfs_LIB():
                     else:
                         index_invertido_stem[palavra].append(idx)
 
-                for palavra in texto_stem.split():
+                for palavra in texto_lemma.split():
                     if palavra not in index_invertido_lemma:
                         index_invertido_lemma[palavra] = [idx]
                     else:

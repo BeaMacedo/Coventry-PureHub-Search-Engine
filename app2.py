@@ -263,7 +263,9 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
 
     # 3. Aplicar NOTs
     final_docs = all_matching_docs - docs_to_exclude
-
+    print("all_matching_docs:", all_matching_docs)
+    print( "docs_to_exclude:", docs_to_exclude)
+    print("final_docs:", final_docs)
     # 4. Calcular similaridade do cosseno
     output_data = {}
     if final_docs:
@@ -1184,103 +1186,26 @@ def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function")
     print(f"output aqui:{output_data}")
     return output_data
 
-#inicial
-'''def app():  # interface Streamlit
-    # Load the image and display it
-    image = Image.open('cire.png')
-    st.image(image)
-
-    input_text = st.text_input("Search research:", key="query_input")
-    operator_val = st.radio(
-        "Search Filters",
-        ["AND", "OR", "Logical operators"],
-        index=1,
-        key="operator_input",
-        horizontal=True,
-    )
-    search_type = st.radio(
-        "Search in:",
-        ['Publications', 'Authors', 'Abstracts', 'LIB Mathematics Support Centre Publications Search'],
-        index=0,
-        key="search_type_input",
-        horizontal=True,
-    )
-
-    stem_lema = st.radio(
-        "Search with:",
-        ["Stemming", "Lemmatization"],
-        index=0,
-        key="stem_lema_input",
-        horizontal=True,
-    )
-    rank_by = st.radio(
-        "Rank with:",
-        ["Sklearn function", "Use Custom tf-idf"],
-        index=0,
-        key="rank_system",
-        horizontal=True,
-    )
-
-    if st.button("SEARCH"):
-        if search_type == "Publications":
-            output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                            2
-                            if operator_val == "OR"
-                            else 3
-                        ), "publication",  1 if stem_lema == "Stemming" else 2,
-                                      rank_by)
-
-            show_results(output_data, search_type)
-        elif search_type == "Authors":
-            output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                            2
-                            if operator_val == "OR"
-                            else 3
-                        ), "author", 1 if stem_lema == "Stemming" else 2,
-                                      rank_by)
-
-            show_results(output_data, search_type)
-        elif search_type == "Abstracts":
-            output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                            2
-                            if operator_val == "OR"
-                            else 3
-                        ), "abstract", 1 if stem_lema == "Stemming" else 2,
-                                      rank_by)
-
-            show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
-        elif search_type == "LIB Mathematics Support Centre Publications Search":
-            output_data = search_LIB_data(input_text, 1 if operator_val == 'AND' else (
-                2
-                if operator_val == "OR"
-                else 3
-            ), 1 if stem_lema == "Stemming" else 2,
-                                       rank_by)
-            show_LIB_results2(output_data)
-        else:
-            output_data = {}
-            show_results(output_data, search_type)
-
-    st.markdown("<p style='text-align: center;'> Brought to you with ❤ by <a href='https://github.com/maladeep'>Mala Deep</a> | Data © Coventry University </p>", unsafe_allow_html=True)'''
-
 def app():
     # Load and display image
     image = Image.open('DEM_thumbnail.jpg')
-    col1, col2, col3 = st.columns([1, 2, 1])  # margem-esquerda, imagem, margem-direita
+    col1, col2, col3 = st.columns([1, 4, 1])  # margem-esquerda, imagem, margem-direita
     with col2:
-        st.image(image, width=300)
+        st.image(image, width=500)
 
     # Botões para alternar entre modos de pesquisa
     if "mode" not in st.session_state:
         st.session_state.mode = "general"  # default
 
     # Layout com colunas para centralizar os botões
-    col1, col2, col3, col4 = st.columns([2,1,1, 2])  # margem esquerda e direita
+    col1, col2, col3 = st.columns([2,3,2])  # margem esquerda e direita
     with col1:
         if st.button("General Search"):
             st.session_state.mode = "general"
-    with col4:
-        if st.button("LIB Mathematics Support Centre Search"):
+
+    col1, col2, col3 = st.columns([2, 3, 2])  # margem esquerda e direita
+    with col1:
+        if st.button("LIB Mathematics Search"):
             st.session_state.mode = "lib"
 
     st.markdown("---")
@@ -1359,7 +1284,6 @@ def app():
             )
             show_LIB_results2(output_data)
 
-    
 def show_LIB_results(output_data):
     # Carregar os dados completos
     aa = 0 #contador de resultados
@@ -1393,9 +1317,9 @@ def show_LIB_results(output_data):
     else:
         st.info(f"Results shown for: {aa}")
 
-
 with open('pdf_texts.json', 'r') as f:
     pdf_texts_complete = ujson.load(f)
+
 
 def show_LIB_results2(output_data, input_text=None, stem_lema=None):
     # Carregar os dados completos
@@ -1403,109 +1327,83 @@ def show_LIB_results2(output_data, input_text=None, stem_lema=None):
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
 
     map_lib_to_pdf = load_pdf_index_mapping()
-    # Processar termos de busca para destacar no texto
+
+    # Processar termos de busca de forma consistente com a indexação
     search_terms = []
     if input_text:
-        # Processar a query da mesma forma que foi feito na pesquisa
         if stem_lema == 1:  # stemming
-            for term in input_text.lower().split():
-                if term not in stop_words:
-                    search_terms.append(stemmer.stem(term))
+            search_terms = [stemmer.stem(term.lower()) for term in input_text.split()
+                            if term.lower() not in stop_words]
         elif stem_lema == 2:  # lematização
             search_terms = enhanced_lemmatize(input_text).split()
         else:
-            search_terms = [term.lower() for term in input_text.split() if term.lower() not in stop_words]
+            search_terms = [term.lower() for term in input_text.split()
+                            if term.lower() not in stop_words]
 
-    # Show the total number of research results
     st.info(f"Showing results for: {len(rank_sorting)}")
 
-    # Função para encontrar e destacar os termos de busca no texto
-    def highlight_search_terms(text, terms):
-        if not text:
-            return "(No text available)"
+    def get_relevant_excerpt(text, terms):
+        if not text or not terms:
+            return text[:300] + "..." if len(text) > 300 else text
 
-        if not terms:
-            return text[:200] + "..." if len(text) > 200 else text
-
-        # Encontrar todas as posições dos termos
-        positions = []
         text_lower = text.lower()
+        best_excerpt = ""
+        best_term = ""
 
         for term in terms:
             term_lower = term.lower()
-            start = 0
-            while True:
-                pos = text_lower.find(term_lower, start)
-                if pos == -1:
-                    break
-                positions.append((pos, pos + len(term)))
-                start = pos + len(term)
+            pos = text_lower.find(term_lower)
 
-        if not positions:
-            return f"(Search terms not found) {text[:200]}..." if len(text) > 200 else text
+            if pos != -1:  # Se encontrou o termo
+                start = max(0, pos - 100)
+                end = min(len(text), pos + len(term) + 200)
+                excerpt = text[start:end]
 
-        # Ordenar as posições
-        positions.sort()
+                # NOVO: destaca todas as ocorrências com a mesma raiz
+                pattern = re.compile(rf"\b{re.escape(term)}\w*\b", re.IGNORECASE)
+                highlighted = pattern.sub(lambda m: f"**{m.group(0)}**", excerpt)
 
-        # Criar snippets em torno dos termos encontrados
-        snippets = []
-        last_end = 0
+                if not best_excerpt:
+                    best_excerpt = highlighted
+                    best_term = term
+                    break  # Mostrar apenas o primeiro termo encontrado
 
-        for start, end in positions:
-            if start > last_end:
-                snippets.append(text[last_end:start])
+        if best_excerpt:
+            if best_excerpt.startswith(text[:100]):
+                best_excerpt = "..." + best_excerpt[100:]
+            if best_excerpt.endswith(text[-200:]):
+                best_excerpt = best_excerpt[:-200] + "..."
+            return best_excerpt
+        else:
+            return "(Search terms not found) " + (text[:200] + "..." if len(text) > 200 else text)
 
-            # Destacar o termo encontrado
-            snippets.append(f"**{text[start:end]}**")
-            last_end = end
-
-        if last_end < len(text):
-            snippets.append(text[last_end:])
-
-        highlighted_text = "".join(snippets)
-
-        # Limitar o tamanho do resultado
-        if len(highlighted_text) > 300:
-            # Encontrar a primeira ocorrência de um termo destacado
-            first_highlight = highlighted_text.find("**")
-            if first_highlight > 100:
-                start = max(0, first_highlight - 50)
-                highlighted_text = "..." + highlighted_text[start:start + 300] + "..."
-            else:
-                highlighted_text = highlighted_text[:300] + "..."
-
-        return highlighted_text
-
-    # Show the cards
+    # Mostrar os resultados
     N_cards_per_row = 3
-    for n_row, (id_val, ranking) in enumerate(
-            rank_sorting):  # id_val: índice do documento e ranking: score de similaridade
+    for n_row, (id_val, ranking) in enumerate(rank_sorting):
         i = n_row % N_cards_per_row
         if i == 0:
             st.write("---")
             cols = st.columns(N_cards_per_row, gap="large")
-        # Draw the card
+
         with cols[n_row % N_cards_per_row]:
             # Informações básicas
             st.caption(f"{pub_date[id_val].strip()}")
             st.markdown(f"**{pub_cu_author[id_val].strip()}**")
             st.markdown(f"*{pub_name[id_val].strip()}*")
 
-            # Obter o texto do PDF (assumindo que está disponível em lib_texts ou similar)
+            # Obter e mostrar excerto relevante
             pdf_text = ""
             pdf_index = map_lib_to_pdf.get(id_val)
             if pdf_index is not None and pdf_index < len(pdf_texts_complete):
                 pdf_text = pdf_texts_complete[pdf_index]
 
-            # Mostrar extrato do texto com termos destacados
-            if pdf_text:
-                st.markdown("**Excerpt:**")
-                excerpt = highlight_search_terms(pdf_text, search_terms)
-                st.markdown(excerpt)
+                if pdf_text:
+                    st.markdown("**Excerpt:**")
+                    excerpt = get_relevant_excerpt(pdf_text, search_terms)
+                    st.markdown(excerpt)
 
             # Links
             st.markdown(f"**{pub_url[id_val]}**")
-            # Se tiver link para PDF
             pub = pub_group_links[id_val]
             if pub.get('link'):
                 st.markdown(f"**[Download PDF]({pub.get('link', '')})**")
@@ -1564,7 +1462,7 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
 
     st.info(f"Showing results for: {len(rank_sorting)}")
 
-    # Processar termos de busca apenas para abstracts
+    # Processar termos de procura apenas para abstracts
     search_terms = []
     if search_type == "Abstracts" and input_text:
         # Processar a query da mesma forma que foi feito na pesquisa
@@ -1574,7 +1472,6 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                     search_terms.append(stemmer.stem(term))
         else:  # lematização
             search_terms = enhanced_lemmatize(input_text).split()
-
     N_cards_per_row = 3
     for n_row, (id_val, ranking) in enumerate(rank_sorting):
         i = n_row % N_cards_per_row
@@ -1598,60 +1495,37 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                 abstract = pub_abstract[id_val]
                 st.markdown(f"**{author_name[id_val].strip()}**")
                 st.markdown(f"*{pub_name[id_val].strip()}*")
+                print("pub_name", [id_val],pub_name[id_val])
 
                 # Função para encontrar e destacar os termos de busca no abstract
                 def highlight_search_terms(text, terms):
                     if not terms:
                         return text[:200] + "..." if len(text) > 200 else text
 
-                    # Encontrar todas as posições dos termos (com stemming/lematização aplicado)
-                    positions = []
-                    text_lower = text.lower()
+                    text_words = text.split()
+                    highlighted_text = []
+                    for word in text_words:
+                        clean_word = re.sub(r'\W+', '', word)  # remove pontuação
 
-                    for term in terms:
-                        term_lower = term.lower()
-                        start = 0
-                        while True:
-                            pos = text_lower.find(term_lower, start)
-                            if pos == -1:
-                                break
-                            positions.append((pos, pos + len(term)))
-                            start = pos + len(term)
+                        if stem_lema == 1:  # stemming
+                            processed_word = stemmer.stem(clean_word.lower())
+                        else:  # lematização
+                            processed_word = lemmatizer.lemmatize(clean_word.lower())
 
-                    if not positions:
-                        return f"(Search terms not found) {text[:200]}..." if len(text) > 200 else text
-
-                    # Ordenar as posições
-                    positions.sort()
-
-                    # Criar snippets em torno dos termos encontrados
-                    snippets = []
-                    last_end = 0
-
-                    for start, end in positions:
-                        if start > last_end:
-                            snippets.append(text[last_end:start])
-
-                        # Destacar o termo encontrado
-                        snippets.append(f"**{text[start:end]}**")
-                        last_end = end
-
-                    if last_end < len(text):
-                        snippets.append(text[last_end:])
-
-                    highlighted_text = "".join(snippets)
-
-                    # Limitar o tamanho do resultado
-                    if len(highlighted_text) > 300:
-                        # Encontrar a primeira ocorrência de um termo destacado
-                        first_highlight = highlighted_text.find("**")
-                        if first_highlight > 100:
-                            start = max(0, first_highlight - 50)
-                            highlighted_text = "..." + highlighted_text[start:start + 300] + "..."
+                        if processed_word in terms:
+                            highlighted_text.append(f"**{word}**")
                         else:
-                            highlighted_text = highlighted_text[:300] + "..."
+                            highlighted_text.append(word)
 
-                    return highlighted_text
+                    result = " ".join(highlighted_text)
+
+                    # cortar se for muito longo
+                    if len(result) > 300:
+                        first = result.find("**")
+                        start = max(0, first - 50) if first > 0 else 0
+                        result = "..." + result[start:start + 300] + "..."
+
+                    return result
 
                 content = highlight_search_terms(abstract, search_terms)
                 st.markdown(content)
