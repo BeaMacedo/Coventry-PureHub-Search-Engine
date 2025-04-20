@@ -485,7 +485,7 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
         pointer = list(pointer)
         print(f"pointer after list: {pointer}")
 
-        # Coletar textos dos documentos encontrados
+        # Coleta textos dos documentos encontrados
         temp_file = []
         for j in pointer:
             if search_type == "publication":
@@ -1282,7 +1282,7 @@ def app():
                 1 if stem_lema == "Stemming" else 2,
                 rank_by
             )
-            show_LIB_results2(output_data)
+            show_LIB_results2(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
 
 def show_LIB_results(output_data):
     # Carregar os dados completos
@@ -1346,36 +1346,75 @@ def show_LIB_results2(output_data, input_text=None, stem_lema=None):
         if not text or not terms:
             return text[:300] + "..." if len(text) > 300 else text
 
+        # Manter os termos originais da pesquisa (antes do stemming/lematização)
+        original_search_terms = [term.lower() for term in input_text.split()
+                                 if term.lower() not in stop_words] if input_text else []
+
         text_lower = text.lower()
-        best_excerpt = ""
-        best_term = ""
+        matches = []
 
-        for term in terms:
-            term_lower = term.lower()
-            pos = text_lower.find(term_lower)
+        # 1. Procurar primeiro pelos termos originais exatos
+        for original_term in original_search_terms:
+            start = 0
+            original_term_lower = original_term.lower()
+            while True:
+                pos = text_lower.find(original_term_lower, start)
+                if pos == -1:
+                    break
+                # Capturar a palavra exata como aparece no texto
+                exact_word = text[pos:pos + len(original_term)]
+                matches.append((pos, exact_word, True))  # True = termo original
+                start = pos + len(original_term)
 
-            if pos != -1:  # Se encontrou o termo
-                start = max(0, pos - 100)
-                end = min(len(text), pos + len(term) + 200)
-                excerpt = text[start:end]
+        # 2. Se não encontrou termos originais, buscar termos processados (stem/lemma)
+        if not matches:
+            for term in terms:
+                term_lower = term.lower()
+                start = 0
+                while True:
+                    pos = text_lower.find(term_lower, start)
+                    if pos == -1:
+                        break
+                    # Capturar a palavra como aparece no texto
+                    matched_word = text[pos:pos + len(term)]
+                    matches.append((pos, matched_word, False))  # False = termo processado
+                    start = pos + len(term)
 
-                # NOVO: destaca todas as ocorrências com a mesma raiz
-                pattern = re.compile(rf"\b{re.escape(term)}\w*\b", re.IGNORECASE)
-                highlighted = pattern.sub(lambda m: f"**{m.group(0)}**", excerpt)
-
-                if not best_excerpt:
-                    best_excerpt = highlighted
-                    best_term = term
-                    break  # Mostrar apenas o primeiro termo encontrado
-
-        if best_excerpt:
-            if best_excerpt.startswith(text[:100]):
-                best_excerpt = "..." + best_excerpt[100:]
-            if best_excerpt.endswith(text[-200:]):
-                best_excerpt = best_excerpt[:-200] + "..."
-            return best_excerpt
-        else:
+        if not matches:
             return "(Search terms not found) " + (text[:200] + "..." if len(text) > 200 else text)
+
+        # Ordenar matches por posição no texto
+        matches.sort()
+
+        # Construir o excerto com destaque
+        result = []
+        last_end = 0
+
+        for pos, word, is_original in matches:
+            # Adicionar texto antes do match
+            if pos > last_end:
+                result.append(text[last_end:pos])
+
+            # Adicionar palavra destacada (todas em negrito)
+            result.append(f"**{word}**")
+            last_end = pos + len(word)
+
+        # Adicionar texto restante
+        if last_end < len(text):
+            result.append(text[last_end:])
+
+        full_text = "".join(result)
+
+        # Limitar o tamanho do excerto mantendo contexto
+        if len(full_text) > 400:
+            first_highlight = full_text.find("**")
+            if first_highlight > 0:
+                start = max(0, first_highlight - 100)
+                end = min(len(full_text), first_highlight + 300)
+                return "..." + full_text[start:end] + "..."
+            return full_text[:400] + "..."
+
+        return full_text
 
     # Mostrar os resultados
     N_cards_per_row = 3
