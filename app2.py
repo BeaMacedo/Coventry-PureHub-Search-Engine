@@ -188,6 +188,15 @@ def query_to_vector(query, word_to_index, corpus):
 
     return query_vector
 
+with open('pub_trigram_index.json', 'r', encoding='utf-8') as f:
+    trigram_index = ujson.load(f)
+with open('pub_trigram_index_lemma.json', 'r', encoding='utf-8') as f:
+    trigram_index_lemma = ujson.load(f)
+with open('pub_bigram_index.json', 'r', encoding='utf-8') as f:
+    bigram_index = ujson.load(f)
+with open('pub_bigram_index_lemma.json', 'r', encoding='utf-8') as f:
+    bigram_index_lemma = ujson.load(f)
+
 def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn function"):
     # Configuração dos índices
     if stem_lema == 2:  # lematização
@@ -197,6 +206,8 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
         pub_abstract_list_first = pub_abstract_list_first_lemma
         author_index = author_index_lemma
         author_list_first = author_list_first_lemma
+        bigram_idx = bigram_index_lemma
+        trigram_idx = trigram_index_lemma
     else:  # stemming
         pub_index = pub_index_stem
         pub_list_first = pub_list_first_stem
@@ -204,6 +215,8 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
         pub_abstract_list_first = pub_abstract_list_first_stem
         author_index = author_index_stem
         author_list_first = author_list_first_stem
+        bigram_idx = bigram_index
+        trigram_idx = trigram_index
 
     # Parse da query
     and_groups, not_terms = parse_query(input_text)
@@ -212,6 +225,7 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
     docs_to_exclude = set()
     for term in not_terms:
         stemmed_term = process_term(term, stem_lema) #aplica stemming ou lematização ao termo
+
         #vai ver todos os documentos onde esse termo aparece e guarda-os em docs_to_exclude
         if search_type == "publication" and stemmed_term in pub_index:
             docs_to_exclude.update(set(pub_index[stemmed_term]))
@@ -332,6 +346,199 @@ def process_term(term, stem_lema):
         stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
 
     return stem_temp.strip()
+
+
+def search_with_operators_ngramas(input_text, search_type, stem_lema, rank_by="Sklearn function"):
+    # Configuração dos índices
+    if stem_lema == 2:  # lematização
+        pub_index = pub_index_lemma
+        pub_list_first = pub_list_first_lemma
+        abstract_index = pub_abstract_index_lemma
+        pub_abstract_list_first = pub_abstract_list_first_lemma
+        author_index = author_index_lemma
+        author_list_first = author_list_first_lemma
+        bigram_idx = bigram_index_lemma
+        trigram_idx = trigram_index_lemma
+    else:  # stemming
+        pub_index = pub_index_stem
+        pub_list_first = pub_list_first_stem
+        abstract_index = pub_abstract_index_stem
+        pub_abstract_list_first = pub_abstract_list_first_stem
+        author_index = author_index_stem
+        author_list_first = author_list_first_stem
+        bigram_idx = bigram_index
+        trigram_idx = trigram_index
+
+    # Parse da query
+    and_groups, not_terms = parse_query(input_text)
+
+    # 1. Processar NOTs primeiro
+    docs_to_exclude = set()
+    for term in not_terms:
+        processed_term = process_term_ngramas(term, stem_lema)
+        term_len = len(processed_term.split())
+
+        # Verificar em qual índice procurar baseado no tamanho do termo
+        if term_len == 1:
+            if search_type == "publication" and processed_term in pub_index:
+                docs_to_exclude.update(set(pub_index[processed_term]))
+            elif search_type == "author" and processed_term in author_index:
+                docs_to_exclude.update(set(author_index[processed_term]))
+            elif search_type == "abstract" and processed_term in abstract_index:
+                docs_to_exclude.update(set(abstract_index[processed_term]))
+        elif term_len == 2 and search_type == "publication":
+            if processed_term in bigram_idx:
+                docs_to_exclude.update(set(bigram_idx[processed_term]))
+        elif term_len == 3 and search_type == "publication":
+            if processed_term in trigram_idx:
+                docs_to_exclude.update(set(trigram_idx[processed_term]))
+
+    # 2. Processar OR groups
+    all_matching_docs = set()
+
+    for group in and_groups:
+        # Ordenar termos por frequência (do mais raro para o mais comum)
+        terms_with_freq = []
+        for term in group:
+            processed_term = process_term_ngramas(term, stem_lema)
+            term_len = len(processed_term.split())
+            freq = 0
+
+            # Determinar frequência baseado no tamanho do termo
+            if term_len == 1:
+                if search_type == "publication" and processed_term in pub_index:
+                    freq = len(pub_index[processed_term])
+                elif search_type == "author" and processed_term in author_index:
+                    freq = len(author_index[processed_term])
+                elif search_type == "abstract" and processed_term in abstract_index:
+                    freq = len(abstract_index[processed_term])
+            elif term_len == 2 and search_type == "publication":
+                if processed_term in bigram_idx:
+                    freq = len(bigram_idx[processed_term])
+            elif term_len == 3 and search_type == "publication":
+                if processed_term in trigram_idx:
+                    freq = len(trigram_idx[processed_term])
+
+            terms_with_freq.append((processed_term, term_len, freq))
+
+        # Ordenar termos pela frequência (ascendente)
+        terms_sorted = sorted(terms_with_freq, key=lambda x: x[2])
+
+        # Processar ANDs na ordem otimizada
+        group_docs = None
+        for term, term_len, _ in terms_sorted:
+            term_docs = set()
+
+            # Buscar documentos baseado no tamanho do termo
+            if term_len == 1:
+                if search_type == "publication" and term in pub_index:
+                    term_docs = set(pub_index[term])
+                elif search_type == "author" and term in author_index:
+                    term_docs = set(author_index[term])
+                elif search_type == "abstract" and term in abstract_index:
+                    term_docs = set(abstract_index[term])
+            elif term_len == 2 and search_type == "publication":
+                if term in bigram_idx:
+                    term_docs = set(bigram_idx[term])
+            elif term_len == 3 and search_type == "publication":
+                if term in trigram_idx:
+                    term_docs = set(trigram_idx[term])
+
+            if group_docs is None:
+                group_docs = term_docs
+            else:
+                group_docs.intersection_update(term_docs)
+                if not group_docs:  # Early exit se conjunto vazio
+                    break
+
+        if group_docs:
+            all_matching_docs.update(group_docs)
+
+    # 3. Aplicar NOTs
+    final_docs = all_matching_docs - docs_to_exclude
+
+    # 4. Calcular similaridade do cosseno (restante da função permanece igual)
+    output_data = {}
+    if final_docs:
+        # Preparar query para TF-IDF
+        query_terms = []
+        for group in and_groups:
+            for term in group:
+                stemmed_term = process_term_ngramas(term, stem_lema)
+                query_terms.append(stemmed_term)
+        query_text = ' '.join(query_terms)
+
+        # Preparar textos dos documentos
+        docs_texts = []
+        doc_ids = []
+        for doc_id in final_docs:
+            if search_type == "publication":
+                docs_texts.append(pub_list_first[doc_id])
+            elif search_type == "author":
+                docs_texts.append(author_list_first[doc_id])
+            elif search_type == "abstract":
+                docs_texts.append(pub_abstract_list_first[doc_id])
+            doc_ids.append(doc_id)
+
+        if rank_by == "Sklearn function":
+            # Calcular TF-IDF e similaridade do cosseno
+            tfidf_matrix = tfidf.fit_transform(docs_texts)
+            query_vector = tfidf.transform([query_text])
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+            # Atribuir scores aos documentos
+            for idx, doc_id in enumerate(doc_ids):
+                output_data[doc_id] = cosine_scores[idx][0]
+        else:
+            tokenized_docs = [doc.split() for doc in docs_texts]
+            word_set = list(set(sum(tokenized_docs, [])))
+            word_to_index = {word: i for i, word in enumerate(word_set)}
+            doc_vectors = tf_idf_vectorizer(tokenized_docs)
+
+            # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
+            query_tokens = query_text.split()
+            query_vec = query_to_vector(query_tokens, word_to_index, tokenized_docs)
+            cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+
+            # Armazena a similaridade de cosseno no dicionário de resultados
+            for idx, doc_id in enumerate(doc_ids):
+                output_data[doc_id] = cosine_output[idx]
+
+    return output_data
+
+def process_term_ngramas(term, stem_lema):
+    # Se o termo tiver múltiplas palavras (frase)
+    if len(term.split()) > 1:
+        # Processa cada palavra individualmente
+        processed_words = []
+        for word in term.split():
+            word_list = word_tokenize(word)
+            stem_temp = ""
+
+            if stem_lema == 1:  # stemming
+                for x in word_list:
+                    if x not in stop_words:
+                        stem_temp += stemmer.stem(x) + " "
+            else:  # lematização
+                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+
+            processed_words.append(stem_temp.strip())
+
+        return " ".join(processed_words)
+    else:
+        # Processamento normal para palavras únicas
+        word_list = word_tokenize(term)
+        stem_temp = ""
+
+        if stem_lema == 1:  # stemming
+            for x in word_list:
+                if x not in stop_words:
+                    stem_temp += stemmer.stem(x) + " "
+        else:  # lematização
+            stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+
+        return stem_temp.strip()
+
 
 def parse_query(query):
     # Processa a query e divide em partes AND, OR e NOT
@@ -789,6 +996,7 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
                 stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
 
             stem_word_file.append(stem_temp.strip())
+            print(f"stem_word {stem_word_file}")
 
             # Verificar se existe o índice para o token processado
             if lib_index.get(stem_word_file[0].strip()):
@@ -1284,38 +1492,6 @@ def app():
             )
             show_LIB_results2(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
 
-def show_LIB_results(output_data):
-    # Carregar os dados completos
-    aa = 0 #contador de resultados
-    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
-
-    # Show the total number of research results
-    st.info(f"Showing results for: {len(rank_sorting)}")
-
-    # Show the cards
-    N_cards_per_row = 3
-    for n_row, (id_val, ranking) in enumerate(rank_sorting): #id_val: índice do documento e ranking: score de similaridade
-        i = n_row % N_cards_per_row
-        if i == 0:
-            st.write("---")
-            cols = st.columns(N_cards_per_row, gap="large")
-        # Draw the card
-        with cols[n_row % N_cards_per_row]:
-            st.caption(f"{pub_date[id_val].strip()}")
-            st.markdown(f"**{pub_cu_author[id_val].strip()}**")
-            st.markdown(f"*{pub_name[id_val].strip()}*")
-            st.markdown(f"**{pub_url[id_val]}**")
-            # Se tiver link para PDF
-            pub = pub_group_links[id_val]
-            if pub.get('link'):
-                st.markdown(f"**[Download PDF]({pub.get('link', '')})**")
-
-        aa += 1
-
-    if aa == 0:
-        st.info("No results found. Please try again.")
-    else:
-        st.info(f"Results shown for: {aa}")
 
 with open('pdf_texts.json', 'r') as f:
     pdf_texts_complete = ujson.load(f)
@@ -1454,6 +1630,134 @@ def show_LIB_results2(output_data, input_text=None, stem_lema=None):
     else:
         st.info(f"Results shown for: {aa}")
 
+def show_results(output_data, search_type, input_text=None, stem_lema=None):
+    aa = 0
+    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
+
+    st.info(f"Showing results for: {len(rank_sorting)}")
+
+    # Processar termos de busca
+    search_terms = []
+    original_terms = []
+    if search_type == "Abstracts" and input_text:
+        original_terms = [term.lower() for term in input_text.split()
+                          if term.lower() not in stop_words]
+        if stem_lema == 1:  # stemming
+            search_terms = [stemmer.stem(term) for term in original_terms]
+        else:  # lematização
+            search_terms = enhanced_lemmatize(input_text).split()
+
+    def highlight_search_terms(text, original_terms, processed_terms):
+        if not text or not (original_terms or processed_terms):
+            return text[:200] + "..." if len(text) > 200 else text
+
+        text_lower = text.lower()
+        matches = []
+
+        # 1. Primeiro busca pelos termos originais exatos
+        for term in original_terms:
+            term_lower = term.lower()
+            start = 0
+            while True:
+                pos = text_lower.find(term_lower, start)
+                if pos == -1:
+                    break
+                # Captura a palavra exata como aparece no texto
+                exact_word = text[pos:pos + len(term)]
+                matches.append((pos, exact_word, True))  # True = termo original
+                start = pos + len(term)
+
+        # 2. Se não encontrou originais, busca pelos termos processados
+        if not matches:
+            for term in processed_terms:
+                term_lower = term.lower()
+                start = 0
+                while True:
+                    pos = text_lower.find(term_lower, start)
+                    if pos == -1:
+                        break
+                    # Captura a palavra como aparece no texto
+                    matched_word = text[pos:pos + len(term)]
+                    matches.append((pos, matched_word, False))  # False = termo processado
+                    start = pos + len(term)
+
+        if not matches:
+            return "(Search terms not found) " + (text[:200] + "..." if len(text) > 200 else text)
+
+        # Ordenar matches por posição
+        matches.sort()
+
+        # Construir o texto com highlights
+        result = []
+        last_end = 0
+
+        for pos, word, is_original in matches:
+            # Adicionar texto antes do match
+            if pos > last_end:
+                result.append(text[last_end:pos])
+
+            # Adicionar palavra destacada (todas em negrito)
+            result.append(f"**{word}**")
+            last_end = pos + len(word)
+
+        # Adicionar texto restante
+        if last_end < len(text):
+            result.append(text[last_end:])
+
+        full_text = "".join(result)
+
+        # Limitar tamanho mantendo contexto
+        if len(full_text) > 400:
+            first_highlight = full_text.find("**")
+            if first_highlight > 0:
+                start = max(0, first_highlight - 100)
+                end = min(len(full_text), first_highlight + 300)
+                return "..." + full_text[start:end] + "..."
+            return full_text[:400] + "..."
+
+        return full_text
+
+    N_cards_per_row = 3
+    for n_row, (id_val, ranking) in enumerate(rank_sorting):
+        i = n_row % N_cards_per_row
+        if i == 0:
+            st.write("---")
+            cols = st.columns(N_cards_per_row, gap="large")
+
+        with cols[n_row % N_cards_per_row]:
+            st.caption(f"{pub_date[id_val].strip()}")
+
+            if search_type == "Publications":
+                content = pub_name[id_val].strip()
+                st.markdown(f"**{pub_cu_author[id_val].strip()}**")
+                st.markdown(f"*{content}*")
+
+            elif search_type == "Authors":
+                st.markdown(f"**{author_name[id_val].strip()}**")
+                st.markdown(f"*{pub_name[id_val].strip()}*")
+
+            elif search_type == "Abstracts":
+                abstract = pub_abstract[id_val]
+                st.markdown(f"**{author_name[id_val].strip()}**")
+                st.markdown(f"*{pub_name[id_val].strip()}*")
+
+                content = highlight_search_terms(abstract, original_terms, search_terms)
+                st.markdown(content)
+
+            # Links [o mesmo código anterior]
+            if id_val < len(pub_url) and pub_url[id_val].strip():
+                st.markdown(f"[View on website]({pub_url[id_val]})", unsafe_allow_html=True)
+            if id_val < len(pub_linksPDF) and pub_linksPDF[id_val].strip():
+                st.markdown(f"[Download PDF]({pub_linksPDF[id_val]})", unsafe_allow_html=True)
+
+        aa += 1
+
+    if aa == 0:
+        st.info("No results found. Please try again.")
+
+
+
+#-------------------------funções iniciais
 def show_results2(output_data, search_type):   #função inicial
     aa = 0
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True) #Ordena os resultados pela pontuação de similaridade
@@ -1494,91 +1798,40 @@ def show_results2(output_data, search_type):   #função inicial
         st.info("No results found. Please try again.")
     else:
         st.info(f"Results shown for: {aa}")
-
-def show_results(output_data, search_type, input_text=None, stem_lema=None):
-    aa = 0
+def show_LIB_results(output_data): #função inicial
+    # Carregar os dados completos
+    aa = 0 #contador de resultados
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
 
+    # Show the total number of research results
     st.info(f"Showing results for: {len(rank_sorting)}")
 
-    # Processar termos de procura apenas para abstracts
-    search_terms = []
-    if search_type == "Abstracts" and input_text:
-        # Processar a query da mesma forma que foi feito na pesquisa
-        if stem_lema == 1:  # stemming
-            for term in input_text.lower().split():
-                if term not in stop_words:
-                    search_terms.append(stemmer.stem(term))
-        else:  # lematização
-            search_terms = enhanced_lemmatize(input_text).split()
+    # Show the cards
     N_cards_per_row = 3
-    for n_row, (id_val, ranking) in enumerate(rank_sorting):
+    for n_row, (id_val, ranking) in enumerate(rank_sorting): #id_val: índice do documento e ranking: score de similaridade
         i = n_row % N_cards_per_row
         if i == 0:
             st.write("---")
             cols = st.columns(N_cards_per_row, gap="large")
-
+        # Draw the card
         with cols[n_row % N_cards_per_row]:
             st.caption(f"{pub_date[id_val].strip()}")
-
-            if search_type == "Publications":
-                content = pub_name[id_val].strip()
-                st.markdown(f"**{pub_cu_author[id_val].strip()}**")
-                st.markdown(f"*{content}*")
-
-            elif search_type == "Authors":
-                st.markdown(f"**{author_name[id_val].strip()}**")
-                st.markdown(f"*{pub_name[id_val].strip()}*")
-
-            elif search_type == "Abstracts":
-                abstract = pub_abstract[id_val]
-                st.markdown(f"**{author_name[id_val].strip()}**")
-                st.markdown(f"*{pub_name[id_val].strip()}*")
-                print("pub_name", [id_val],pub_name[id_val])
-
-                # Função para encontrar e destacar os termos de busca no abstract
-                def highlight_search_terms(text, terms):
-                    if not terms:
-                        return text[:200] + "..." if len(text) > 200 else text
-
-                    text_words = text.split()
-                    highlighted_text = []
-                    for word in text_words:
-                        clean_word = re.sub(r'\W+', '', word)  # remove pontuação
-
-                        if stem_lema == 1:  # stemming
-                            processed_word = stemmer.stem(clean_word.lower())
-                        else:  # lematização
-                            processed_word = lemmatizer.lemmatize(clean_word.lower())
-
-                        if processed_word in terms:
-                            highlighted_text.append(f"**{word}**")
-                        else:
-                            highlighted_text.append(word)
-
-                    result = " ".join(highlighted_text)
-
-                    # cortar se for muito longo
-                    if len(result) > 300:
-                        first = result.find("**")
-                        start = max(0, first - 50) if first > 0 else 0
-                        result = "..." + result[start:start + 300] + "..."
-
-                    return result
-
-                content = highlight_search_terms(abstract, search_terms)
-                st.markdown(content)
-
-            # Links
-            if id_val < len(pub_url) and pub_url[id_val].strip():
-                st.markdown(f"[View on website]({pub_url[id_val]})", unsafe_allow_html=True)
-            if id_val < len(pub_linksPDF) and pub_linksPDF[id_val].strip():
-                st.markdown(f"[Download PDF]({pub_linksPDF[id_val]})", unsafe_allow_html=True)
+            st.markdown(f"**{pub_cu_author[id_val].strip()}**")
+            st.markdown(f"*{pub_name[id_val].strip()}*")
+            st.markdown(f"**{pub_url[id_val]}**")
+            # Se tiver link para PDF
+            pub = pub_group_links[id_val]
+            if pub.get('link'):
+                st.markdown(f"**[Download PDF]({pub.get('link', '')})**")
 
         aa += 1
 
     if aa == 0:
         st.info("No results found. Please try again.")
+    else:
+        st.info(f"Results shown for: {aa}")
+
+
 
 if __name__ == '__main__':
     app()

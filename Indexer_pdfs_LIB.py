@@ -128,7 +128,7 @@ def processar_texto_stem(texto):
     return ' '.join(palavras_filtradas)
 
 def processar_texto_lemma(texto):
-    return enhanced_lemmatize(texto)
+    return enhanced_lemmatize(texto.lower())
 
 def remover_referencias(texto):
     # Encontra a palavra 'references' no texto, ignorando case
