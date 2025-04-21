@@ -189,11 +189,11 @@ def query_to_vector(query, word_to_index, corpus):
     return query_vector
 
 with open('pub_trigram_index.json', 'r', encoding='utf-8') as f:
-    trigram_index = ujson.load(f)
+    trigram_index_stemm = ujson.load(f)
 with open('pub_trigram_index_lemma.json', 'r', encoding='utf-8') as f:
     trigram_index_lemma = ujson.load(f)
 with open('pub_bigram_index.json', 'r', encoding='utf-8') as f:
-    bigram_index = ujson.load(f)
+    bigram_index_stemm = ujson.load(f)
 with open('pub_bigram_index_lemma.json', 'r', encoding='utf-8') as f:
     bigram_index_lemma = ujson.load(f)
 
@@ -206,8 +206,6 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
         pub_abstract_list_first = pub_abstract_list_first_lemma
         author_index = author_index_lemma
         author_list_first = author_list_first_lemma
-        bigram_idx = bigram_index_lemma
-        trigram_idx = trigram_index_lemma
     else:  # stemming
         pub_index = pub_index_stem
         pub_list_first = pub_list_first_stem
@@ -215,8 +213,6 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
         pub_abstract_list_first = pub_abstract_list_first_stem
         author_index = author_index_stem
         author_list_first = author_list_first_stem
-        bigram_idx = bigram_index
-        trigram_idx = trigram_index
 
     # Parse da query
     and_groups, not_terms = parse_query(input_text)
@@ -346,199 +342,6 @@ def process_term(term, stem_lema):
         stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
 
     return stem_temp.strip()
-
-
-def search_with_operators_ngramas(input_text, search_type, stem_lema, rank_by="Sklearn function"):
-    # Configuração dos índices
-    if stem_lema == 2:  # lematização
-        pub_index = pub_index_lemma
-        pub_list_first = pub_list_first_lemma
-        abstract_index = pub_abstract_index_lemma
-        pub_abstract_list_first = pub_abstract_list_first_lemma
-        author_index = author_index_lemma
-        author_list_first = author_list_first_lemma
-        bigram_idx = bigram_index_lemma
-        trigram_idx = trigram_index_lemma
-    else:  # stemming
-        pub_index = pub_index_stem
-        pub_list_first = pub_list_first_stem
-        abstract_index = pub_abstract_index_stem
-        pub_abstract_list_first = pub_abstract_list_first_stem
-        author_index = author_index_stem
-        author_list_first = author_list_first_stem
-        bigram_idx = bigram_index
-        trigram_idx = trigram_index
-
-    # Parse da query
-    and_groups, not_terms = parse_query(input_text)
-
-    # 1. Processar NOTs primeiro
-    docs_to_exclude = set()
-    for term in not_terms:
-        processed_term = process_term_ngramas(term, stem_lema)
-        term_len = len(processed_term.split())
-
-        # Verificar em qual índice procurar baseado no tamanho do termo
-        if term_len == 1:
-            if search_type == "publication" and processed_term in pub_index:
-                docs_to_exclude.update(set(pub_index[processed_term]))
-            elif search_type == "author" and processed_term in author_index:
-                docs_to_exclude.update(set(author_index[processed_term]))
-            elif search_type == "abstract" and processed_term in abstract_index:
-                docs_to_exclude.update(set(abstract_index[processed_term]))
-        elif term_len == 2 and search_type == "publication":
-            if processed_term in bigram_idx:
-                docs_to_exclude.update(set(bigram_idx[processed_term]))
-        elif term_len == 3 and search_type == "publication":
-            if processed_term in trigram_idx:
-                docs_to_exclude.update(set(trigram_idx[processed_term]))
-
-    # 2. Processar OR groups
-    all_matching_docs = set()
-
-    for group in and_groups:
-        # Ordenar termos por frequência (do mais raro para o mais comum)
-        terms_with_freq = []
-        for term in group:
-            processed_term = process_term_ngramas(term, stem_lema)
-            term_len = len(processed_term.split())
-            freq = 0
-
-            # Determinar frequência baseado no tamanho do termo
-            if term_len == 1:
-                if search_type == "publication" and processed_term in pub_index:
-                    freq = len(pub_index[processed_term])
-                elif search_type == "author" and processed_term in author_index:
-                    freq = len(author_index[processed_term])
-                elif search_type == "abstract" and processed_term in abstract_index:
-                    freq = len(abstract_index[processed_term])
-            elif term_len == 2 and search_type == "publication":
-                if processed_term in bigram_idx:
-                    freq = len(bigram_idx[processed_term])
-            elif term_len == 3 and search_type == "publication":
-                if processed_term in trigram_idx:
-                    freq = len(trigram_idx[processed_term])
-
-            terms_with_freq.append((processed_term, term_len, freq))
-
-        # Ordenar termos pela frequência (ascendente)
-        terms_sorted = sorted(terms_with_freq, key=lambda x: x[2])
-
-        # Processar ANDs na ordem otimizada
-        group_docs = None
-        for term, term_len, _ in terms_sorted:
-            term_docs = set()
-
-            # Buscar documentos baseado no tamanho do termo
-            if term_len == 1:
-                if search_type == "publication" and term in pub_index:
-                    term_docs = set(pub_index[term])
-                elif search_type == "author" and term in author_index:
-                    term_docs = set(author_index[term])
-                elif search_type == "abstract" and term in abstract_index:
-                    term_docs = set(abstract_index[term])
-            elif term_len == 2 and search_type == "publication":
-                if term in bigram_idx:
-                    term_docs = set(bigram_idx[term])
-            elif term_len == 3 and search_type == "publication":
-                if term in trigram_idx:
-                    term_docs = set(trigram_idx[term])
-
-            if group_docs is None:
-                group_docs = term_docs
-            else:
-                group_docs.intersection_update(term_docs)
-                if not group_docs:  # Early exit se conjunto vazio
-                    break
-
-        if group_docs:
-            all_matching_docs.update(group_docs)
-
-    # 3. Aplicar NOTs
-    final_docs = all_matching_docs - docs_to_exclude
-
-    # 4. Calcular similaridade do cosseno (restante da função permanece igual)
-    output_data = {}
-    if final_docs:
-        # Preparar query para TF-IDF
-        query_terms = []
-        for group in and_groups:
-            for term in group:
-                stemmed_term = process_term_ngramas(term, stem_lema)
-                query_terms.append(stemmed_term)
-        query_text = ' '.join(query_terms)
-
-        # Preparar textos dos documentos
-        docs_texts = []
-        doc_ids = []
-        for doc_id in final_docs:
-            if search_type == "publication":
-                docs_texts.append(pub_list_first[doc_id])
-            elif search_type == "author":
-                docs_texts.append(author_list_first[doc_id])
-            elif search_type == "abstract":
-                docs_texts.append(pub_abstract_list_first[doc_id])
-            doc_ids.append(doc_id)
-
-        if rank_by == "Sklearn function":
-            # Calcular TF-IDF e similaridade do cosseno
-            tfidf_matrix = tfidf.fit_transform(docs_texts)
-            query_vector = tfidf.transform([query_text])
-            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
-
-            # Atribuir scores aos documentos
-            for idx, doc_id in enumerate(doc_ids):
-                output_data[doc_id] = cosine_scores[idx][0]
-        else:
-            tokenized_docs = [doc.split() for doc in docs_texts]
-            word_set = list(set(sum(tokenized_docs, [])))
-            word_to_index = {word: i for i, word in enumerate(word_set)}
-            doc_vectors = tf_idf_vectorizer(tokenized_docs)
-
-            # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
-            query_tokens = query_text.split()
-            query_vec = query_to_vector(query_tokens, word_to_index, tokenized_docs)
-            cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
-
-            # Armazena a similaridade de cosseno no dicionário de resultados
-            for idx, doc_id in enumerate(doc_ids):
-                output_data[doc_id] = cosine_output[idx]
-
-    return output_data
-
-def process_term_ngramas(term, stem_lema):
-    # Se o termo tiver múltiplas palavras (frase)
-    if len(term.split()) > 1:
-        # Processa cada palavra individualmente
-        processed_words = []
-        for word in term.split():
-            word_list = word_tokenize(word)
-            stem_temp = ""
-
-            if stem_lema == 1:  # stemming
-                for x in word_list:
-                    if x not in stop_words:
-                        stem_temp += stemmer.stem(x) + " "
-            else:  # lematização
-                stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
-
-            processed_words.append(stem_temp.strip())
-
-        return " ".join(processed_words)
-    else:
-        # Processamento normal para palavras únicas
-        word_list = word_tokenize(term)
-        stem_temp = ""
-
-        if stem_lema == 1:  # stemming
-            for x in word_list:
-                if x not in stop_words:
-                    stem_temp += stemmer.stem(x) + " "
-        else:  # lematização
-            stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
-
-        return stem_temp.strip()
-
 
 def parse_query(query):
     # Processa a query e divide em partes AND, OR e NOT
@@ -934,6 +737,139 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
     elif operator_val == 3:  # PESQUISA COM OPERADORES LOGICOS
 
         output_data = search_with_operators(input_text, search_type, stem_lema)
+
+    return output_data
+
+#Bigramas e trigramas
+
+
+def search_phrases(input_text, operator_val, stem_lema, rank_by="Sklearn function"):
+    """
+    Função para pesquisar por frases (bigramas ou trigramas) com operadores lógicos
+    Args:
+        input_text: texto de pesquisa (pode conter operadores AND/OR e frases entre aspas)
+        operator_val: 1 (AND), 2 (OR)
+        stem_lema: 1 (stemming), 2 (lematização)
+        rank_by: método de ranking
+    """
+    # Configurar índices conforme stem_lema
+    if stem_lema == 2:  # lematização
+        bigram_index = bigram_index_lemma
+        trigram_index = trigram_index_lemma
+        pub_list_first = pub_list_first_lemma
+        term_index = pub_index_lemma
+    else:  # stemming
+        bigram_index = bigram_index_stemm
+        trigram_index = trigram_index_stemm
+        pub_list_first = pub_list_first_stem
+        term_index = pub_index_stem
+
+    output_data = {}
+
+    # Extrair frases entre aspas e termos individuais
+    phrases = []
+    remaining_text = input_text
+    quoted_phrases = re.findall(r'"(.*?)"', input_text)
+
+    for phrase in quoted_phrases:
+        phrases.append(phrase)
+        remaining_text = remaining_text.replace(f'"{phrase}"', '')
+
+    # Processar termos restantes (operadores e termos individuais)
+    remaining_terms = []
+    for term in remaining_text.split():
+        term_lower = term.lower()
+        if term_lower not in ['and', 'or']:
+            remaining_terms.append(term_lower)
+
+    # Processar cada frase identificada
+    all_phrase_docs = []
+    for phrase in phrases:
+        phrase_words = phrase.split()
+        stemmed_phrase = ' '.join([process_term(word, stem_lema) for word in phrase_words])
+
+        # Verificar se é bigrama ou trigrama válido
+        if len(phrase_words) == 2 and stemmed_phrase in bigram_index:
+            all_phrase_docs.append(set(bigram_index[stemmed_phrase]))
+        elif len(phrase_words) == 3 and stemmed_phrase in trigram_index:
+            all_phrase_docs.append(set(trigram_index[stemmed_phrase]))
+        else:
+            # Se a frase não for encontrada, para AND retornamos vazio
+            if operator_val == 1:
+                return {}
+
+    # Processar termos individuais restantes
+    all_term_docs = []
+    for term in remaining_terms:
+        stemmed_term = process_term(term, stem_lema)
+        if stemmed_term in term_index:
+            all_term_docs.append(set(term_index[stemmed_term]))
+        else:
+            # Se o termo não for encontrado, para AND retornamos vazio
+            if operator_val == 1:
+                return {}
+
+    # Aplicar operador lógico
+    final_docs = set()
+
+    if operator_val == 1:  # AND - TODAS as frases E termos devem estar presentes
+        if not all_phrase_docs and not all_term_docs:
+            return {}
+
+        # Começar com todos os documentos se não houver frases
+        if all_phrase_docs:
+            final_docs = set.intersection(*all_phrase_docs)
+        else:
+            final_docs = set(pub_list_first.keys())  # Todos os documentos
+
+        # Adicionar interseção com termos individuais
+        if all_term_docs:
+            final_docs.intersection_update(set.intersection(*all_term_docs))
+
+    elif operator_val == 2:  # OR - PELO MENOS UMA frase OU termo deve estar presente
+        # União de todas as frases e termos
+        all_docs = all_phrase_docs + all_term_docs
+        if all_docs:
+            final_docs = set().union(*all_docs)
+        else:
+            return {}
+
+    # Se nenhum documento foi encontrado
+    if not final_docs:
+        return {}
+
+    # Restante da função permanece igual...
+    # Converter para lista
+    final_docs = list(final_docs)
+
+    # Calcular similaridade (ranking)
+    docs_texts = [pub_list_first[doc_id] for doc_id in final_docs]
+
+    # Preparar query para TF-IDF (incluir todas as palavras de frases e termos)
+    query_terms = []
+    for phrase in phrases:
+        query_terms.extend([process_term(word, stem_lema) for word in phrase.split()])
+    query_terms.extend([process_term(term, stem_lema) for term in remaining_terms])
+    query_text = ' '.join(query_terms)
+
+    if rank_by == "Sklearn function":
+        tfidf_matrix = tfidf.fit_transform(docs_texts)
+        query_vector = tfidf.transform([query_text])
+        cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+        for idx, doc_id in enumerate(final_docs):
+            output_data[doc_id] = cosine_scores[idx][0]
+    else:
+        tokenized_docs = [doc.split() for doc in docs_texts]
+        word_set = list(set(sum(tokenized_docs, [])))
+        word_to_index = {word: i for i, word in enumerate(word_set)}
+
+        doc_vectors = tf_idf_vectorizer(tokenized_docs)
+        query_vec = query_to_vector(query_text.split(), word_to_index, tokenized_docs)
+        cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+
+        for idx, doc_id in enumerate(final_docs):
+            output_data[doc_id] = cosine_output[idx]
 
     return output_data
 
@@ -1420,6 +1356,14 @@ def app():
 
     input_text = st.text_input("Search research:", key="query_input")
 
+    search_mode = st.radio(
+        "Search mode:",
+        ["Regular search", "Phrase search"],
+        index=0,
+        key="search_mode",
+        horizontal=True,
+    )
+
     operator_val = st.radio(
         "Search Filters",
         ["AND", "OR", "Logical operators"],
@@ -1454,33 +1398,43 @@ def app():
         )
 
         if st.button("SEARCH"):
-            if search_type == "Publications":
-                output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                                2
-                                if operator_val == "OR"
-                                else 3
-                            ), "publication",  1 if stem_lema == "Stemming" else 2,
-                                          rank_by)
+            if search_mode == "Regular search":
+                if search_type == "Publications":
+                    output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
+                                    2
+                                    if operator_val == "OR"
+                                    else 3
+                                ), "publication",  1 if stem_lema == "Stemming" else 2,
+                                              rank_by)
 
-                show_results(output_data, search_type)
-            elif search_type == "Authors":
-                output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                                2
-                                if operator_val == "OR"
-                                else 3
-                            ), "author", 1 if stem_lema == "Stemming" else 2,
-                                          rank_by)
+                    show_results(output_data, search_type)
+                elif search_type == "Authors":
+                    output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
+                                    2
+                                    if operator_val == "OR"
+                                    else 3
+                                ), "author", 1 if stem_lema == "Stemming" else 2,
+                                              rank_by)
 
-                show_results(output_data, search_type)
-            elif search_type == "Abstracts":
-                output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                                2
-                                if operator_val == "OR"
-                                else 3
-                            ), "abstract", 1 if stem_lema == "Stemming" else 2,
-                                          rank_by)
+                    show_results(output_data, search_type)
+                elif search_type == "Abstracts":
+                    output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
+                                    2
+                                    if operator_val == "OR"
+                                    else 3
+                                ), "abstract", 1 if stem_lema == "Stemming" else 2,
+                                              rank_by)
 
-                show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+                    show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+            else:
+                if search_type == "Publications":
+                    output_data = search_phrases(
+                        input_text,
+                        1 if operator_val == 'AND' else 2,
+                        1 if stem_lema == "Stemming" else 2,
+                        rank_by
+                    )
+                    show_results(output_data, search_type)
 
     elif st.session_state.mode == "lib":
         if st.button("SEARCH"):

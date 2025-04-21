@@ -145,3 +145,4 @@ with open('scraper_results.json', 'r') as f1, open('scraper_results_with_abstrac
     updated = ujson.load(f2)
     print("Original:", len(original))
     print("Atualizado:", len(updated))
+
