@@ -49,9 +49,16 @@ with open('publication_indexed_dictionary_abstract.json', 'r') as f:
     pub_abstract_index_stem = ujson.load(f)
 with open('publication_indexed_dictionary_abstract_lemma.json', 'r') as f:
     pub_abstract_index_lemma = ujson.load(f)
+
+
+
+#ACHO QUE NAO ESTAMOS A USAR
 # Carregar os índices específicos para o grupo LIB
 with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
     lib_index = ujson.load(f)
+
+
+
 with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
     lib_texts = ujson.load(f)
 with open('author_names.json', 'r') as f:
@@ -1330,12 +1337,12 @@ def app():
     if "mode" not in st.session_state:
         st.session_state.mode = "general"
 
-    col1, col2, col3 = st.columns([2,3,2])
+    col1, col2, col3 = st.columns([4,2,2])
     with col1:
         if st.button("General Search"):
             st.session_state.mode = "general"
 
-    col1, col2, col3 = st.columns([2, 3, 2])
+    col1, col2, col3 = st.columns([4, 2, 2])
     with col1:
         if st.button("Search by Research Groups"):
             st.session_state.mode = "research_groups"
