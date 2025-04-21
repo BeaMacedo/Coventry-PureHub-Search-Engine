@@ -1337,8 +1337,8 @@ def app():
 
     col1, col2, col3 = st.columns([2, 3, 2])
     with col1:
-        if st.button("LIB Mathematics Search"):
-            st.session_state.mode = "lib"
+        if st.button("Search by Research Groups"):
+            st.session_state.mode = "research_groups"
 
     st.markdown("---")
 
@@ -1431,39 +1431,82 @@ def app():
                     )
                     show_results(output_data, search_type)
 
-    elif st.session_state.mode == "lib":
-        operator_val = st.radio(
-            "Search Filters",
-            ["AND", "OR", "Logical operators"],
-            index=1,
-            key="operator_input",
-            horizontal=True,
+    elif st.session_state.mode == "research_groups":
+        # Obter todos os grupos de pesquisa únicos
+        all_groups = set()
+        for pub in pub_group_links:
+            if 'research_group' in pub and pub['research_group']:
+                for group in pub['research_group']:
+                    all_groups.add(group)
+
+        # Ordenar os grupos alfabeticamente
+        sorted_groups = sorted(all_groups)
+
+        # Selecionar grupo
+        selected_group = st.selectbox(
+            "Select Research Group:",
+            sorted_groups,
+            index=sorted_groups.index(
+                "LIB Mathematics Support Centre") if "LIB Mathematics Support Centre" in sorted_groups else 0
         )
 
-        stem_lema = st.radio(
-            "Search with:",
-            ["Stemming", "Lemmatization"],
-            index=0,
-            key="stem_lema_input",
-            horizontal=True,
-        )
-
-        rank_by = st.radio(
-            "Rank with:",
-            ["Sklearn function", "Use Custom tf-idf"],
-            index=0,
-            key="rank_system",
-            horizontal=True,
-        )
-
-        if st.button("SEARCH"):
-            output_data = search_LIB_data(
-                input_text,
-                1 if operator_val == 'AND' else (2 if operator_val == "OR" else 3),
-                1 if stem_lema == "Stemming" else 2,
-                rank_by
+        # Mostrar opções para o grupo selecionado
+        if selected_group == "LIB Mathematics Support Centre":
+            option = st.radio(
+                "LIB Mathematics Options:",
+                ["Show all publications", "Search within publications"],
+                index=0,
+                key="lib_option",
+                horizontal=True,
             )
-            show_LIB_results2(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
+
+            if option == "Show all publications":
+                show_group_publications(selected_group)
+            else:
+                # Mostrar opções de pesquisa para o LIB
+                operator_val = st.radio(
+                    "Search Filters",
+                    ["AND", "OR", "Logical operators"],
+                    index=1,
+                    key="operator_input",
+                    horizontal=True,
+                )
+
+                stem_lema = st.radio(
+                    "Search with:",
+                    ["Stemming", "Lemmatization"],
+                    index=0,
+                    key="stem_lema_input",
+                    horizontal=True,
+                )
+
+                rank_by = st.radio(
+                    "Rank with:",
+                    ["Sklearn function", "Use Custom tf-idf"],
+                    index=0,
+                    key="rank_system",
+                    horizontal=True,
+                )
+
+                if st.button("SEARCH"):
+                    output_data = search_LIB_data(
+                        input_text,
+                        1 if operator_val == 'AND' else (2 if operator_val == "OR" else 3),
+                        1 if stem_lema == "Stemming" else 2,
+                        rank_by
+                    )
+                    show_LIB_results2(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
+        else:
+            # Para outros grupos, apenas mostrar as publicações
+            show_group_publications(selected_group)
+
+
+
+
+
+
+
+#Mostrar resultados de pesquisas:
 
 with open('pdf_texts.json', 'r') as f:
     pdf_texts_complete = ujson.load(f)
@@ -1726,6 +1769,60 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
     if aa == 0:
         st.info("No results found. Please try again.")
 
+#Apresentar as publicações por reasearch_group
+
+def get_publications_by_group():
+    """Organiza todas as publicações por grupo de pesquisa"""
+    groups_dict = {}
+
+    # Percorrer todas as publicações
+    for pub_id, pub_data in enumerate(pub_group_links):
+        if 'research_group' in pub_data and pub_data['research_group']:
+            for group in pub_data['research_group']:
+                if group not in groups_dict:
+                    groups_dict[group] = []
+                groups_dict[group].append(pub_id)
+
+    return groups_dict
+
+def show_group_publications(group_name):
+    """Mostra todas as publicações de um grupo específico"""
+    publications_by_group = get_publications_by_group()
+
+    if group_name not in publications_by_group:
+        st.warning(f"No publications found for group: {group_name}")
+        return
+
+    pub_ids = publications_by_group[group_name]
+    aa = 0
+    N_cards_per_row = 3
+
+    st.info(f"Showing {len(pub_ids)} publications from {group_name}")
+
+    for n_row, pub_id in enumerate(pub_ids):
+        i = n_row % N_cards_per_row
+        if i == 0:
+            st.write("---")
+            cols = st.columns(N_cards_per_row, gap="large")
+
+        with cols[n_row % N_cards_per_row]:
+            pub = pub_group_links[pub_id]
+            st.caption(f"{pub['date'].strip()}")
+            st.markdown(f"**{pub['cu_author'].strip()}**")
+            st.markdown(f"*{pub['name'].strip()}*")
+
+            # Mostrar link para a publicação
+            if 'pub_url' in pub and pub['pub_url'].strip():
+                st.markdown(f"[View on website]({pub['pub_url']})", unsafe_allow_html=True)
+
+            # Mostrar link para PDF se existir
+            if 'link' in pub and pub['link'].strip():
+                st.markdown(f"[Download PDF]({pub['link']})", unsafe_allow_html=True)
+
+        aa += 1
+
+    st.info(f"Results shown: {aa}")
+
 
 
 #-------------------------funções iniciais
@@ -1806,4 +1903,5 @@ def show_LIB_results(output_data): #função inicial
 
 if __name__ == '__main__':
     app()
+
 
