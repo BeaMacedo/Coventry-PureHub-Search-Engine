@@ -1363,7 +1363,7 @@ def app():
                 horizontal=True,
             )
         else:
-            search_mode = "Regular search"  # Força pesquisa regular para Authors
+            search_mode = "Regular search"  # Pesquisa regular para Authors
 
         operator_val = st.radio(
             "Search Filters",
@@ -1450,59 +1450,161 @@ def app():
                 "LIB Mathematics Support Centre") if "LIB Mathematics Support Centre" in sorted_groups else 0
         )
 
-        # Mostrar opções para o grupo selecionado
+        # Mostrar opções para todos os grupos
         if selected_group == "LIB Mathematics Support Centre":
             option = st.radio(
                 "LIB Mathematics Options:",
-                ["Show all publications", "Search within publications"],
+                ["Show all publications", "Search within publications", "Search in PDFs"],
                 index=0,
                 key="lib_option",
                 horizontal=True,
             )
+        else:
+            option = st.radio(
+                f"{selected_group} Options:",
+                ["Show all publications", "Search within publications"],
+                index=0,
+                key="group_option",
+                horizontal=True,
+            )
 
-            if option == "Show all publications":
-                show_group_publications(selected_group)
-            else:
-                # Mostrar opções de pesquisa para o LIB
-                operator_val = st.radio(
-                    "Search Filters",
-                    ["AND", "OR", "Logical operators"],
-                    index=1,
-                    key="operator_input",
+        if option == "Show all publications":
+            show_group_publications(selected_group)
+        elif option == "Search within publications":
+            # Mostrar opções de pesquisa para o grupo selecionado
+            search_type = st.radio(
+                "Search in:",
+                ['Publications', 'Authors', 'Abstracts'],
+                index=0,
+                key="search_type_group",
+                horizontal=True,
+            )
+
+            # Para Publications e Abstracts, mostrar opção de search mode
+            if search_type in ['Publications', 'Abstracts']:
+                search_mode = st.radio(
+                    "Search mode:",
+                    ["Regular search", "Phrase search"],
+                    index=0,
+                    key="search_mode_group",
                     horizontal=True,
                 )
+            else:
+                search_mode = "Regular search"
 
+            operator_val = st.radio(
+                "Search Filters",
+                ["AND", "OR", "Logical operators"],
+                index=1,
+                key="operator_group",
+                horizontal=True,
+            )
+
+            if search_mode == "Regular search":
                 stem_lema = st.radio(
                     "Search with:",
                     ["Stemming", "Lemmatization"],
                     index=0,
-                    key="stem_lema_input",
+                    key="stem_lema_group",
                     horizontal=True,
                 )
+            else:
+                stem_lema = None
 
-                rank_by = st.radio(
-                    "Rank with:",
-                    ["Sklearn function", "Use Custom tf-idf"],
-                    index=0,
-                    key="rank_system",
-                    horizontal=True,
+            rank_by = st.radio(
+                "Rank with:",
+                ["Sklearn function", "Use Custom tf-idf"],
+                index=0,
+                key="rank_system_group",
+                horizontal=True,
+            )
+
+            if st.button("SEARCH"):
+                # Primeiro filtramos as publicações que pertencem ao grupo selecionado
+                group_pub_ids = [i for i, pub in enumerate(pub_group_links)
+                                 if 'research_group' in pub and selected_group in pub['research_group']]
+
+                if search_mode == "Regular search":
+                    if search_type == "Publications":
+                        output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
+                            2 if operator_val == "OR" else 3
+                        ), "publication", 1 if stem_lema == "Stemming" else 2,
+                                                   rank_by)
+                        # Filtrar apenas os resultados que estão no grupo
+                        output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
+                        show_results(output_data, search_type)
+                    elif search_type == "Authors":
+                        output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
+                            2 if operator_val == "OR" else 3
+                        ), "author", 1 if stem_lema == "Stemming" else 2,
+                                                   rank_by)
+                        # Filtrar apenas os resultados que estão no grupo
+                        output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
+                        show_results(output_data, search_type)
+                    elif search_type == "Abstracts":
+                        output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
+                            2 if operator_val == "OR" else 3
+                        ), "abstract", 1 if stem_lema == "Stemming" else 2,
+                                                   rank_by)
+                        # Filtrar apenas os resultados que estão no grupo
+                        output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
+                        show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+                else:  # Phrase search
+                    if search_type == "Publications":
+                        output_data = search_ngrams_only(
+                            input_text,
+                            1 if operator_val == 'AND' else 2,
+                            "publication",
+                            rank_by
+                        )
+                        # Filtrar apenas os resultados que estão no grupo
+                        output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
+                        show_results(output_data, search_type)
+                    elif search_type == "Abstracts":
+                        output_data = search_ngrams_only(
+                            input_text,
+                            1 if operator_val == 'AND' else 2,
+                            "abstract",
+                            rank_by
+                        )
+                        # Filtrar apenas os resultados que estão no grupo
+                        output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
+                        show_results(output_data, search_type)
+
+        elif option == "Search in PDFs" and selected_group == "LIB Mathematics Support Centre":
+            # Mostrar opções de pesquisa para os PDFs do LIB
+            operator_val = st.radio(
+                "Search Filters",
+                ["AND", "OR", "Logical operators"],
+                index=1,
+                key="operator_input",
+                horizontal=True,
+            )
+
+            stem_lema = st.radio(
+                "Search with:",
+                ["Stemming", "Lemmatization"],
+                index=0,
+                key="stem_lema_input",
+                horizontal=True,
+            )
+
+            rank_by = st.radio(
+                "Rank with:",
+                ["Sklearn function", "Use Custom tf-idf"],
+                index=0,
+                key="rank_system",
+                horizontal=True,
+            )
+
+            if st.button("SEARCH"):
+                output_data = search_LIB_data(
+                    input_text,
+                    1 if operator_val == 'AND' else (2 if operator_val == "OR" else 3),
+                    1 if stem_lema == "Stemming" else 2,
+                    rank_by
                 )
-
-                if st.button("SEARCH"):
-                    output_data = search_LIB_data(
-                        input_text,
-                        1 if operator_val == 'AND' else (2 if operator_val == "OR" else 3),
-                        1 if stem_lema == "Stemming" else 2,
-                        rank_by
-                    )
-                    show_LIB_results2(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
-        else:
-            # Para outros grupos, apenas mostrar as publicações
-            show_group_publications(selected_group)
-
-
-
-
+                show_LIB_results2(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
 
 
 
@@ -1619,6 +1721,7 @@ def show_LIB_results2(output_data, input_text=None, stem_lema=None):
             st.caption(f"{pub_date[id_val].strip()}")
             st.markdown(f"**{pub_cu_author[id_val].strip()}**")
             st.markdown(f"*{pub_name[id_val].strip()}*")
+
 
             # Obter e mostrar excerto relevante
             pdf_text = ""
