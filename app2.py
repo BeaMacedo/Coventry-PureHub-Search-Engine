@@ -1322,6 +1322,307 @@ def search_ngrams_only(input_text, operator_val, search_type = "publication", ra
 
     return output_data
 
+#Bigramas e trigramas com logic operators
+def parse_query_with_precedence(query):
+    """Nova versão que implementa precedência do OR sobre o AND"""
+    query = query.lower().strip()
+
+    # 1. Processar NOTs primeiro
+    not_terms = []
+    not_pattern = re.compile(r'not\s+([^\s]+)')
+    for match in not_pattern.finditer(query):
+        not_terms.append(match.group(1))
+    query_without_nots = not_pattern.sub('', query)
+
+    # 2. Processar ORs com precedência
+    or_groups = []
+    current_or_group = []
+
+    # Dividir por OR primeiro
+    for or_part in re.split(r'\bor\b', query_without_nots):
+        or_part = or_part.strip()
+        if not or_part:
+            continue
+
+        # Dentro de cada parte OR, processar ANDs
+        and_terms = []
+        for and_part in re.split(r'\band\b|\s+', or_part):
+            and_part = and_part.strip()
+            if and_part:
+                and_terms.append(and_part)
+
+        if and_terms:
+            current_or_group.append(and_terms)
+
+    # 3. Organizar a estrutura de grupos
+    if current_or_group:
+        or_groups = current_or_group
+
+    return or_groups, not_terms
+
+def search_ngrams_with_operators(input_text, search_type="publication", rank_by="Sklearn function"):
+    """Pesquisa com operadores lógicos em bigramas/trigramas"""
+    # Configurar índices baseados no tipo de pesquisa
+    if search_type == "publication":
+        bigram_index = pubname_bigram_index
+        trigram_index = pubname_trigram_index
+        text_data = pub_name
+    elif search_type == "abstract":
+        bigram_index = abstract_bigram_index
+        trigram_index = abstract_trigram_index
+        text_data = pub_abstract
+    else:
+        return {}
+
+    # 1. Extrair frases entre aspas
+    phrases = re.findall(r'"(.*?)"', input_text)
+    remaining_text = re.sub(r'"(.*?)"', '', input_text).strip()
+
+    # 2. Processar NOTs
+    not_terms = []
+    not_pattern = re.compile(r'not\s+([^\s]+)')
+    for match in not_pattern.finditer(input_text):
+        not_terms.append(match.group(1))
+
+    # 3. Processar frases como n-grams
+    phrase_docs = {}
+    for phrase in phrases:
+        phrase_lower = phrase.lower()
+        words = phrase_lower.split()
+        n = len(words)
+
+        if n == 2 and phrase_lower in bigram_index:
+            phrase_docs[phrase] = set(bigram_index[phrase_lower])
+        elif n == 3 and phrase_lower in trigram_index:
+            phrase_docs[phrase] = set(trigram_index[phrase_lower])
+
+    # 4. Parse da query com precedência OR
+    or_groups, remaining_not_terms = parse_query_with_precedence(remaining_text)
+    not_terms.extend(remaining_not_terms)
+
+    # 5. Processar documentos para exclusão (NOT)
+    docs_to_exclude = set()
+    for term in not_terms:
+        term_lower = term.lower()
+        words = term_lower.split()
+        if len(words) == 2 and term_lower in bigram_index:
+            docs_to_exclude.update(set(bigram_index[term_lower]))
+        elif len(words) == 3 and term_lower in trigram_index:
+            docs_to_exclude.update(set(trigram_index[term_lower]))
+
+    # 6. Processar OR groups com precedência
+    all_matching_docs = set()
+
+    for or_group in or_groups:
+        # Cada OR group contém AND groups
+        or_group_docs = set()
+
+        for and_group in or_group:
+            # Processar AND group com otimização por frequência
+            terms_with_freq = []
+
+            for term in and_group:
+                if term.startswith('"') and term.endswith('"'):
+                    phrase = term[1:-1].lower()
+                    if phrase in phrase_docs:
+                        freq = len(phrase_docs[phrase])
+                        terms_with_freq.append((term, freq, 'phrase'))
+                else:
+                    term_lower = term.lower()
+                    words = term_lower.split()
+                    if len(words) == 2 and term_lower in bigram_index:
+                        freq = len(bigram_index[term_lower])
+                        terms_with_freq.append((term, freq, 'bigram'))
+                    elif len(words) == 3 and term_lower in trigram_index:
+                        freq = len(trigram_index[term_lower])
+                        terms_with_freq.append((term, freq, 'trigram'))
+
+            # Ordenar por frequência (termos mais raros primeiro)
+            terms_sorted = sorted(terms_with_freq, key=lambda x: x[1])
+
+            # Processar termos em ordem otimizada
+            and_group_docs = None
+            for term, freq, term_type in terms_sorted:
+                term_docs = set()
+
+                if term_type == 'phrase':
+                    phrase = term[1:-1].lower()
+                    term_docs = phrase_docs.get(phrase, set())
+                elif term_type == 'bigram':
+                    term_docs = set(bigram_index.get(term.lower(), []))
+                elif term_type == 'trigram':
+                    term_docs = set(trigram_index.get(term.lower(), []))
+
+                if and_group_docs is None:
+                    and_group_docs = term_docs
+                else:
+                    and_group_docs.intersection_update(term_docs)
+                    if not and_group_docs:
+                        break
+
+            if and_group_docs:
+                or_group_docs.update(and_group_docs)
+
+        if or_group_docs:
+            all_matching_docs.update(or_group_docs)
+
+    # 7. Aplicar NOTs
+    final_docs = all_matching_docs - docs_to_exclude
+
+    # 8. Calcular similaridade
+    output_data = {}
+    if final_docs:
+        # Preparar query para TF-IDF
+        query_parts = []
+        for or_group in or_groups:
+            for and_group in or_group:
+                for term in and_group:
+                    if term.startswith('"') and term.endswith('"'):
+                        query_parts.append(term[1:-1])
+                    else:
+                        query_parts.append(term.lower())
+
+        query_text = ' '.join(query_parts)
+
+        # Preparar textos dos documentos
+        docs_texts = []
+        doc_ids = []
+        for doc_id in final_docs:
+            docs_texts.append(text_data[doc_id])
+            doc_ids.append(doc_id)
+
+        # Calcular similaridade
+        if rank_by == "Sklearn function":
+            tfidf_matrix = tfidf.fit_transform(docs_texts)
+            query_vector = tfidf.transform([query_text])
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+            for idx, doc_id in enumerate(doc_ids):
+                output_data[doc_id] = cosine_scores[idx][0]
+        else:
+            tokenized_docs = [doc.split() for doc in docs_texts]
+            word_set = list(set(sum(tokenized_docs, [])))
+            word_to_index = {word: i for i, word in enumerate(word_set)}
+
+            query_tokens = query_text.split()
+            query_vec = query_to_vector(query_tokens, word_to_index, tokenized_docs)
+            doc_vectors = tf_idf_vectorizer(tokenized_docs)
+            cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+
+            for idx, doc_id in enumerate(doc_ids):
+                output_data[doc_id] = cosine_output[idx]
+
+    return output_data
+
+def search_ngrams_only2(input_text, operator_val, search_type = "publication", rank_by="Sklearn function"):
+    """
+    Pesquisa exclusiva em bigramas e trigramas com operadores lógicos
+    Args:
+        input_text: texto de pesquisa (frases entre aspas com operadores AND/OR)
+        operator_val: 1 (AND), 2 (OR)
+        search_type: "publication" ou "abstract"
+        rank_by: metodo de ranking
+    """
+    if operator_val == 3:
+        return search_ngrams_with_operators(input_text, search_type, rank_by)
+
+    output_data = {}
+
+    # Selecionar o índice correto baseado no tipo de pesquisa
+    if search_type == "publication":
+        bigram_index = pubname_bigram_index
+        trigram_index = pubname_trigram_index
+        with open('pub_name.json', 'r') as f:
+            pub_texts = ujson.load(f)
+    elif search_type == "abstract":
+        bigram_index = abstract_bigram_index
+        trigram_index = abstract_trigram_index
+        with open('pub_abstract.json', 'r') as f:
+            pub_texts = ujson.load(f)
+    else:
+        return {}
+
+    # Extrair frases entre aspas (obrigatório para esta função)
+    phrases = re.findall(r'"(.*?)"', input_text)
+    if not phrases:
+        return {}  # Requer pelo menos uma frase entre aspas
+
+    # Processar cada frase identificada (exata, sem processamento)
+    all_ngram_docs = []
+    invalid_phrases = []
+
+    for phrase in phrases:
+        phrase_lower = phrase.lower()
+        phrase_words = phrase_lower.split()
+        ngram_length = len(phrase_words)
+
+        # Verificar se é bigrama ou trigrama válido
+        if ngram_length == 2:
+            if phrase_lower in bigram_index:
+                all_ngram_docs.append(set(bigram_index[phrase_lower]))
+            else:
+                invalid_phrases.append(phrase)
+        elif ngram_length == 3:
+            if phrase_lower in trigram_index:
+                all_ngram_docs.append(set(trigram_index[phrase_lower]))
+            else:
+                invalid_phrases.append(phrase)
+        else:
+            invalid_phrases.append(phrase)
+
+    # Tratamento para frases inválidas
+    if invalid_phrases:
+        if operator_val == 1:  # AND - todas devem ser válidas
+            return {}
+        # Para OR, apenas ignoramos as inválidas e continuamos com as válidas
+
+    # Aplicar operador lógico apenas entre n-grams válidos
+    final_docs = set()
+
+    if operator_val == 1:  # AND - TODOS os n-grams devem estar presentes
+        if all_ngram_docs:
+            final_docs = set.intersection(*all_ngram_docs)
+        else:
+            return {}
+    elif operator_val == 2:  # OR - PELO MENOS UM n-gram deve estar presente
+        if all_ngram_docs:
+            final_docs = set.union(*all_ngram_docs)
+        else:
+            return {}
+
+    if not final_docs:
+        return {}
+
+    # Converter para lista e preparar para ranking
+    final_docs = list(final_docs)
+    docs_texts = [pub_texts[doc_id] for doc_id in final_docs]
+
+    # Preparar query para TF-IDF (usando todas as palavras dos n-grams)
+    query_text = ' '.join(phrase.lower() for phrase in phrases)
+
+    # Aplicar ranking
+    if rank_by == "Sklearn function":
+        tfidf_matrix = tfidf.fit_transform(docs_texts)
+        query_vector = tfidf.transform([query_text])
+        cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+        for idx, doc_id in enumerate(final_docs):
+            output_data[doc_id] = cosine_scores[idx][0]
+    else:
+        tokenized_docs = [doc.split() for doc in docs_texts]
+        word_set = list(set(sum(tokenized_docs, [])))
+        word_to_index = {word: i for i, word in enumerate(word_set)}
+
+        doc_vectors = tf_idf_vectorizer(tokenized_docs)
+        query_vec = query_to_vector(query_text.split(), word_to_index, tokenized_docs)
+        cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+
+        for idx, doc_id in enumerate(final_docs):
+            output_data[doc_id] = cosine_output[idx]
+
+    return output_data
+
+
 #---------FUNÇÃO APP
 def app():
     # Load and display image
@@ -1417,19 +1718,23 @@ def app():
                                 ), "abstract", 1 if stem_lema == "Stemming" else 2,
                                 rank_by)
                     show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
-            else:  # Phrase search
+            elif search_mode == "Phrase search":  # Phrase search
                 if search_type == "Publications":
-                    output_data = search_ngrams_only(
+                    output_data = search_ngrams_only2(
                         input_text,
-                        1 if operator_val == 'AND' else 2,
+                        1 if operator_val == 'AND' else (
+                            2 if operator_val == "OR" else 3
+                        ),
                         "publication",
                         rank_by
                     )
                     show_results(output_data, search_type)
                 elif search_type == "Abstracts":
-                    output_data = search_ngrams_only(
+                    output_data = search_ngrams_only2(
                         input_text,
-                        1 if operator_val == 'AND' else 2,
+                        1 if operator_val == 'AND' else (
+                            2 if operator_val == "OR" else 3
+                        ),
                         "abstract",
                         rank_by
                     )
@@ -1555,9 +1860,11 @@ def app():
                         show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
                 else:  # Phrase search
                     if search_type == "Publications":
-                        output_data = search_ngrams_only(
+                        output_data = search_ngrams_only2(
                             input_text,
-                            1 if operator_val == 'AND' else 2,
+                            1 if operator_val == 'AND' else (
+                                2 if operator_val == "OR" else 3
+                            ),
                             "publication",
                             rank_by
                         )
@@ -1565,9 +1872,11 @@ def app():
                         output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
                         show_results(output_data, search_type)
                     elif search_type == "Abstracts":
-                        output_data = search_ngrams_only(
+                        output_data = search_ngrams_only2(
                             input_text,
-                            1 if operator_val == 'AND' else 2,
+                            1 if operator_val == 'AND' else (
+                                2 if operator_val == "OR" else 3
+                            ),
                             "abstract",
                             rank_by
                         )
