@@ -81,16 +81,21 @@ with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
 #-------- FUNÇÕES PARA USAR NA LEMATIZAÇÃO
 # Função para converter POS tags para o formato WordNet
 def get_wordnet_pos(treebank_tag):
-    if treebank_tag.startswith('J'):
-        return wordnet.ADJ
-    elif treebank_tag.startswith('V'):
-        return wordnet.VERB
-    elif treebank_tag.startswith('N'):
-        return wordnet.NOUN
-    elif treebank_tag.startswith('R'):
-        return wordnet.ADV
-    else:
-        return wordnet.NOUN  # Padrão para substantivo
+    try:
+        if treebank_tag.startswith('J'):
+            return wordnet.ADJ
+        elif treebank_tag.startswith('V'):
+            return wordnet.VERB
+        elif treebank_tag.startswith('N'):
+            return wordnet.NOUN
+        elif treebank_tag.startswith('R'):
+            return wordnet.ADV
+        else:
+            return wordnet.NOUN  # Padrão para substantivo
+
+    except AttributeError:
+        # Fallback seguro se wordnet não carregar corretamente
+        return 'n'  # equivalente a wordnet.NOUN
 
 #Função para a lematização:
 def enhanced_lemmatize(text):
@@ -183,7 +188,6 @@ def cos_sim(mat_A, mat_B):
         matriz_sim.append(cosine_similarities)
     return matriz_sim
 
-
 #-------- PESQUISAR UTILIZANDO QUERIES COM OS OPERADORES LÓGICOS AND, OR, NOT
 def query_to_vector(query, word_to_index, corpus):
 
@@ -239,6 +243,7 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
         terms_with_freq = []
         for term in group:
             stemmed_term = process_term(term, stem_lema) #aplica stemming ou lematização ao termo
+            print(f"stemmed_term: {stemmed_term}")
             freq = 0
             if search_type == "publication" and stemmed_term in pub_index:
                 freq = len(pub_index[stemmed_term])
@@ -310,6 +315,7 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
             # Atribuir scores aos documentos
             for idx, doc_id in enumerate(doc_ids): # idx corresponde à posição daquele documento na lista cosine_scores
                 output_data[doc_id] = cosine_scores[idx][0]
+            print(f"output_data_swo: {output_data}")
 
         else:
             tokenized_docs = [doc.split() for doc in docs_texts]
@@ -451,9 +457,8 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
             #print(f"cosine_scores: {cosine_scores}")
 
             for idx, doc_id in enumerate(pointer):
-                #print(f"doc_id: {doc_id}, idx: {idx}")
-                print(f"cosine_scores[idx]: {cosine_scores[idx]}")
                 output_data[doc_id] = cosine_scores[idx][0]
+                print(f"output_data: {output_data}")
         else:
             tokenized_docs = [doc.split() for doc in temp_file]
             word_set = list(set(sum(tokenized_docs, [])))
@@ -600,10 +605,10 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                     #print(f"stem_word_file_or: {stem_word_file}")
                     cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
 
-                    #print(f"pointer_or:{pointer}")
+                    print(f"pointer_or:{pointer}")
                     for j in pointer:
                         output_data[j] = cosine_output[pointer.index(j)] #primeira posição em que um indice de um documento aparece, para nao haver duplicados
-                    #print(f"output_data_or:{output_data}")
+                    print(f"output_data_or:{output_data}")
 
                 else:
                     i =0
@@ -674,7 +679,6 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
             if len(match_word) == 0: #se nenhum documento satisfaz faz a query
                 output_data = {}
 
-
             else: #se houver match, vamos calcular tf-idf e similaridade com o cos
                 for j in list(match_word):
                     print(f"j: {j}")
@@ -687,13 +691,13 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                         #print(f"temp_file: {temp_file}")
                 if rank_by == "Sklearn function":
                     temp_file = tfidf.fit_transform(temp_file)
-                    #print(f"stem_word_file: {stem_word_file}")
+                    print(f"stem_word_file: {stem_word_file}")
                     cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-                    #print("cosine_output1: ", cosine_output)
+                    print("cosine_output_and: ", cosine_output)
                     #print(f"list(match_word):{list(match_word)}")
                     for j in list(match_word):
                         output_data[j] = cosine_output[list(match_word).index(j)]
-                        #print(f"output_data: {output_data}")
+                        print(f"output_data_fim: {output_data}")
                 else:
                     i = 0
                     matrix = []
@@ -742,7 +746,6 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
         output_data = search_with_operators(input_text, search_type, stem_lema)
 
     return output_data
-
 
 #----------- INDICES PDF LIB
 # Função para carregar os índices mapeados de dic_indices_pdfs.json
@@ -981,9 +984,6 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
     return output_data
 
 def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn function"): #considera a query toda no calculo da similaridade
-    """
-    Função para pesquisa nos documentos LIB seguindo a mesma estrutura da search_data2
-    """
     # Configuração dos índices conforme stem_lema
     lib_index = lib_index_lema if stem_lema == 2 else lib_index_stemm
     lib_texts = lib_texts_lema if stem_lema == 2 else lib_texts_stemm
@@ -1321,7 +1321,6 @@ def search_ngrams_only(input_text, operator_val, search_type = "publication", ra
             output_data[doc_id] = cosine_output[idx]
 
     return output_data
-
 
 #---------FUNÇÃO APP
 def app():
@@ -1866,6 +1865,8 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                 # Só mostrar se for uma lista com conteúdo
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
+                #st.markdown(f"Ranking: {ranking[0]:.2f}") #este se usar a search_data
+                st.markdown(f"Ranking: {float(ranking):.2f}")  # este se usar a search_data2
 
             elif search_type == "Authors":
                 st.markdown(f"**{author_name[id_val].strip()}**")
