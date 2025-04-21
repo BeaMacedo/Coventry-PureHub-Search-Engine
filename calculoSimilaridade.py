@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from matplotlib import pyplot as plt
-
+'''
 #Número de vezes que a palavra aparece dividido pelo número de palavras no documento
 def tf(word, document):
     return document.count(word) / len(document)
@@ -144,5 +144,18 @@ with open('scraper_results.json', 'r') as f1, open('scraper_results_with_abstrac
     original = ujson.load(f1)
     updated = ujson.load(f2)
     print("Original:", len(original))
-    print("Atualizado:", len(updated))
+    print("Atualizado:", len(updated))'''
 
+from nltk.tokenize import word_tokenize
+import nltk
+
+text = "NLTK is a great package for working with natural language data."
+
+print("Bigramas e Trigramas")
+n = 50
+print(list(nltk.bigrams(word_tokenize(text)[:n])))
+[('but', 'he'), ('he', 'swiftly'), ('swiftly', 'calls'), ('calls', 'away'), ('away', 'the'), ('the', 'captain'), ('captain',
+'from'), ...]
+print(list(nltk.trigrams(word_tokenize(text)[:n])))
+[('but', 'he', 'swiftly'), ('he', 'swiftly', 'calls'), ('swiftly', 'calls', 'away'), ('calls', 'away', 'the'), ('away', 'the',
+'captain'), ('the', 'captain', 'from'), ...]

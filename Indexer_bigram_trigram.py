@@ -1,82 +1,71 @@
-# Adicionar no início do código, após outros imports
-import nltk #NLTK for natural language processing tasks
 import ujson
-import wordnet
-from nltk.corpus import stopwords # list of stop word
-from nltk.tokenize import word_tokenize # To tokenize each word
-from nltk.stem import PorterStemmer # For specific rules to transform words to their stems
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import wordnet
-from nltk import pos_tag
 from nltk.util import ngrams
 from collections import defaultdict
 
-# Load the data
-with open('publication_list_stemmed.json', 'r') as f:
-    pub_list_first_stem = ujson.load(f)
-with open('publication_list_lemma.json', 'r') as f:
-    pub_list_first_lemma = ujson.load(f)
+#Sem aplicar lematização e stem para ser uma pesquisa exata com aspas
 
-#Remove Special Characters
-def remove_special_character(data = []):
-    abstract_list_wo_sc = []
-    special_characters = '''!()-—[]{};:'"\, <>./?@#$%^&*_~0123456789+=’‘'''
-    for file in data:
-        word_wo_sc = ""
-        if len(file.split()) == 1:
-            abstract_list_wo_sc.append(file)
-        else:
-            for a in file:
-                if a in special_characters:
-                    word_wo_sc += ' '
-                else:
-                    word_wo_sc += a
-            abstract_list_wo_sc.append(word_wo_sc)
-    return abstract_list_wo_sc
+# Carregar nomes das publicações
+with open('pubname_list.json', 'r') as f:
+    publication = f.read()
 
+pubName = ujson.loads(publication)
 
-# Carregar ou criar índices de n-gramas
-def load_or_create_ngram_indices():
-
-    # Criar índices se não existirem
+# Criar índices de n-gramas (sem stemming/lemmatização)
+def create_ngram_indices_from_pubname():
     bigram_index = defaultdict(list)
     trigram_index = defaultdict(list)
-    bigram_index_lemma = defaultdict(list)
-    trigram_index_lemma = defaultdict(list)
 
-    pub_list_first_stem_semchar = remove_special_character(pub_list_first_stem)
-    pub_list_first_lemma_semchar = remove_special_character(pub_list_first_lemma)
+    for doc_id, text in enumerate(pubName):
+        tokens = text.lower().split()  # transformar em minúsculas
+        for bg in ngrams(tokens, 2):
+            bg_key = " ".join(bg)
+            if doc_id not in bigram_index[bg_key]:
+                bigram_index[bg_key].append(doc_id)
+        for tg in ngrams(tokens, 3):
+            tg_key = " ".join(tg)
+            if doc_id not in trigram_index[tg_key]:
+                trigram_index[tg_key].append(doc_id)
 
-    # Processar para stemming
-    for doc_id, text in enumerate(pub_list_first_stem_semchar):
-        tokens = text.split()
-        # Bigramas
-        for bg in list(ngrams(tokens, 2)):
-            bigram_index[" ".join(bg)].append(doc_id)
-        # Trigramas
-        for tg in list(ngrams(tokens, 3)):
-            trigram_index[" ".join(tg)].append(doc_id)
-
-    # Processar para lematização
-    for doc_id, text in enumerate(pub_list_first_lemma_semchar):
-        tokens = text.split()
-        # Bigramas
-        for bg in list(ngrams(tokens, 2)):
-            bigram_index_lemma[" ".join(bg)].append(doc_id)
-        # Trigramas
-        for tg in list(ngrams(tokens, 3)):
-            trigram_index_lemma[" ".join(tg)].append(doc_id)
-
-    # Salvar os índices
-    with open('pub_bigram_index.json', 'w') as f:
+    # Guardar os índices
+    with open('pubname_bigram_index.json', 'w') as f:
         ujson.dump(bigram_index, f)
-    with open('pub_trigram_index.json', 'w') as f:
+
+    with open('pubname_trigram_index.json', 'w') as f:
         ujson.dump(trigram_index, f)
-    with open('pub_bigram_index_lemma.json', 'w') as f:
-        ujson.dump(bigram_index_lemma, f)
-    with open('pub_trigram_index_lemma.json', 'w') as f:
-        ujson.dump(trigram_index_lemma, f)
 
-    return bigram_index, trigram_index, bigram_index_lemma, trigram_index_lemma
+    return bigram_index, trigram_index
 
-load_or_create_ngram_indices()
+#create_ngram_indices_from_pubname()
+
+# Carregar abstracts das publicações
+with open('abstract_list.json', 'r') as f:
+    abstract = f.read()
+
+abstracts = ujson.loads(abstract)
+
+def create_ngram_indices_from_abstract():
+    bigram_index = defaultdict(list)
+    trigram_index = defaultdict(list)
+
+    for doc_id, text in enumerate(abstracts):
+        tokens = text.lower().split()  # transformar em minúsculas
+        for bg in ngrams(tokens, 2):
+            bg_key = " ".join(bg)
+            if doc_id not in bigram_index[bg_key]:
+                bigram_index[bg_key].append(doc_id)
+        for tg in ngrams(tokens, 3):
+            tg_key = " ".join(tg)
+            if doc_id not in trigram_index[tg_key]:
+                trigram_index[tg_key].append(doc_id)
+
+    # Guardar os índices
+    with open('abstract_bigram_index.json', 'w') as f:
+        ujson.dump(bigram_index, f)
+
+    with open('abstract_trigram_index.json', 'w') as f:
+        ujson.dump(trigram_index, f)
+
+    return bigram_index, trigram_index
+
+# Criar e guardar os índices
+create_ngram_indices_from_abstract()

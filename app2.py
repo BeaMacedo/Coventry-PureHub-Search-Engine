@@ -188,15 +188,6 @@ def query_to_vector(query, word_to_index, corpus):
 
     return query_vector
 
-with open('pub_trigram_index.json', 'r', encoding='utf-8') as f:
-    trigram_index_stemm = ujson.load(f)
-with open('pub_trigram_index_lemma.json', 'r', encoding='utf-8') as f:
-    trigram_index_lemma = ujson.load(f)
-with open('pub_bigram_index.json', 'r', encoding='utf-8') as f:
-    bigram_index_stemm = ujson.load(f)
-with open('pub_bigram_index_lemma.json', 'r', encoding='utf-8') as f:
-    bigram_index_lemma = ujson.load(f)
-
 def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn function"):
     # Configuração dos índices
     if stem_lema == 2:  # lematização
@@ -740,118 +731,98 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
 
     return output_data
 
-#Bigramas e trigramas
+#-----------Bigramas e trigramas
+#Para os titulos:
+with open('pubname_bigram_index.json', 'r', encoding='utf-8') as f:
+    bigram_index = ujson.load(f)
+with open('pubname_trigram_index.json', 'r', encoding='utf-8') as f:
+    trigram_index = ujson.load(f)
+# Carregar nomes das publicações
+with open('pub_name.json', 'r') as f:
+    publication = f.read()
+pubName = ujson.loads(publication)
+
+#Para os abstracts:
+with open('abstract_bigram_index.json', 'r', encoding='utf-8') as f:
+    bigram_index = ujson.load(f)
+with open('abstract_trigram_index.json', 'r', encoding='utf-8') as f:
+    trigram_index = ujson.load(f)
+# Carregar nomes das publicações
+with open('pub_abstract.json', 'r') as f:
+    publication = f.read()
+pubName = ujson.loads(publication)
 
 
-def search_phrases(input_text, operator_val, stem_lema, rank_by="Sklearn function"):
+def search_ngrams_only(input_text, operator_val, search_type = "publication", rank_by="Sklearn function"):
     """
-    Função para pesquisar por frases (bigramas ou trigramas) com operadores lógicos
+    Pesquisa exclusiva em bigramas e trigramas com operadores lógicos
     Args:
-        input_text: texto de pesquisa (pode conter operadores AND/OR e frases entre aspas)
+        input_text: texto de pesquisa (frases entre aspas com operadores AND/OR)
         operator_val: 1 (AND), 2 (OR)
-        stem_lema: 1 (stemming), 2 (lematização)
-        rank_by: método de ranking
+        rank_by: metodo de ranking
     """
-    # Configurar índices conforme stem_lema
-    if stem_lema == 2:  # lematização
-        bigram_index = bigram_index_lemma
-        trigram_index = trigram_index_lemma
-        pub_list_first = pub_list_first_lemma
-        term_index = pub_index_lemma
-    else:  # stemming
-        bigram_index = bigram_index_stemm
-        trigram_index = trigram_index_stemm
-        pub_list_first = pub_list_first_stem
-        term_index = pub_index_stem
-
     output_data = {}
 
-    # Extrair frases entre aspas e termos individuais
-    phrases = []
-    remaining_text = input_text
-    quoted_phrases = re.findall(r'"(.*?)"', input_text)
+    # Extrair frases entre aspas (obrigatório para esta função)
+    phrases = re.findall(r'"(.*?)"', input_text)
+    if not phrases:
+        return {}  # Requer pelo menos uma frase entre aspas
 
-    for phrase in quoted_phrases:
-        phrases.append(phrase)
-        remaining_text = remaining_text.replace(f'"{phrase}"', '')
+    # Processar cada frase identificada (exata, sem processamento)
+    all_ngram_docs = []
+    invalid_phrases = []
 
-    # Processar termos restantes (operadores e termos individuais)
-    remaining_terms = []
-    for term in remaining_text.split():
-        term_lower = term.lower()
-        if term_lower not in ['and', 'or']:
-            remaining_terms.append(term_lower)
-
-    # Processar cada frase identificada
-    all_phrase_docs = []
     for phrase in phrases:
-        phrase_words = phrase.split()
-        stemmed_phrase = ' '.join([process_term(word, stem_lema) for word in phrase_words])
+        phrase_lower = phrase.lower()
+        phrase_words = phrase_lower.split()
+        ngram_length = len(phrase_words)
 
         # Verificar se é bigrama ou trigrama válido
-        if len(phrase_words) == 2 and stemmed_phrase in bigram_index:
-            all_phrase_docs.append(set(bigram_index[stemmed_phrase]))
-        elif len(phrase_words) == 3 and stemmed_phrase in trigram_index:
-            all_phrase_docs.append(set(trigram_index[stemmed_phrase]))
+        if ngram_length == 2:
+            if phrase_lower in bigram_index:
+                all_ngram_docs.append(set(bigram_index[phrase_lower]))
+            else:
+                invalid_phrases.append(phrase)
+        elif ngram_length == 3:
+            if phrase_lower in trigram_index:
+                all_ngram_docs.append(set(trigram_index[phrase_lower]))
+            else:
+                invalid_phrases.append(phrase)
         else:
-            # Se a frase não for encontrada, para AND retornamos vazio
-            if operator_val == 1:
-                return {}
+            invalid_phrases.append(phrase)
 
-    # Processar termos individuais restantes
-    all_term_docs = []
-    for term in remaining_terms:
-        stemmed_term = process_term(term, stem_lema)
-        if stemmed_term in term_index:
-            all_term_docs.append(set(term_index[stemmed_term]))
-        else:
-            # Se o termo não for encontrado, para AND retornamos vazio
-            if operator_val == 1:
-                return {}
+    # Tratamento para frases inválidas (não são bigramas/trigramas ou não existem)
+    if invalid_phrases:
+        if operator_val == 1:  # AND - todas devem ser válidas
+            return {}
+        # Para OR, apenas ignoramos as inválidas e continuamos com as válidas
 
-    # Aplicar operador lógico
+    # Aplicar operador lógico apenas entre n-grams válidos
     final_docs = set()
 
-    if operator_val == 1:  # AND - TODAS as frases E termos devem estar presentes
-        if not all_phrase_docs and not all_term_docs:
-            return {}
-
-        # Começar com todos os documentos se não houver frases
-        if all_phrase_docs:
-            final_docs = set.intersection(*all_phrase_docs)
-        else:
-            final_docs = set(pub_list_first.keys())  # Todos os documentos
-
-        # Adicionar interseção com termos individuais
-        if all_term_docs:
-            final_docs.intersection_update(set.intersection(*all_term_docs))
-
-    elif operator_val == 2:  # OR - PELO MENOS UMA frase OU termo deve estar presente
-        # União de todas as frases e termos
-        all_docs = all_phrase_docs + all_term_docs
-        if all_docs:
-            final_docs = set().union(*all_docs)
+    if operator_val == 1:  # AND - TODOS os n-grams devem estar presentes
+        if all_ngram_docs:
+            final_docs = set.intersection(*all_ngram_docs)
         else:
             return {}
 
-    # Se nenhum documento foi encontrado
+    elif operator_val == 2:  # OR - PELO MENOS UM n-gram deve estar presente
+        if all_ngram_docs:
+            final_docs = set.union(*all_ngram_docs)
+        else:
+            return {}
+
     if not final_docs:
         return {}
 
-    # Restante da função permanece igual...
-    # Converter para lista
+    # Converter para lista e preparar para ranking
     final_docs = list(final_docs)
+    docs_texts = [pubName[doc_id] for doc_id in final_docs]
 
-    # Calcular similaridade (ranking)
-    docs_texts = [pub_list_first[doc_id] for doc_id in final_docs]
+    # Preparar query para TF-IDF (usando todas as palavras dos n-grams)
+    query_text = ' '.join(phrase.lower() for phrase in phrases)
 
-    # Preparar query para TF-IDF (incluir todas as palavras de frases e termos)
-    query_terms = []
-    for phrase in phrases:
-        query_terms.extend([process_term(word, stem_lema) for word in phrase.split()])
-    query_terms.extend([process_term(term, stem_lema) for term in remaining_terms])
-    query_text = ' '.join(query_terms)
-
+    # Aplicar ranking
     if rank_by == "Sklearn function":
         tfidf_matrix = tfidf.fit_transform(docs_texts)
         query_vector = tfidf.transform([query_text])
@@ -1428,10 +1399,9 @@ def app():
                     show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
             else:
                 if search_type == "Publications":
-                    output_data = search_phrases(
+                    output_data = search_ngrams_only(
                         input_text,
                         1 if operator_val == 'AND' else 2,
-                        1 if stem_lema == "Stemming" else 2,
                         rank_by
                     )
                     show_results(output_data, search_type)

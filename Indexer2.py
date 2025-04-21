@@ -204,6 +204,8 @@ with open('publication_list_lemma.json', 'w') as f:
 with open('publication_indexed_dictionary_lemma.json', 'w') as f:
     ujson.dump(data_dict_lemma, f)
 
+with open('pubname_list.json', 'w') as f:
+    ujson.dump(pub_list_wo_sc, f)
 
 #-------------------------------------------------------Indice invertido dos abstract das publicações-------------------------------------------------------------------
 
@@ -342,3 +344,6 @@ with open('publication_abstract_list_lemma_abstract.json', 'w') as f: #sem stop 
 
 with open('publication_indexed_dictionary_abstract_lemma.json', 'w') as f: #indice invertido, onde se removeu caracteres especiais, stop words e com stem
     ujson.dump(data_dict_lemma, f)
+
+with open('abstract_list.json', 'w') as f:
+    ujson.dump(pub_abstract_list_wo_sc, f)
