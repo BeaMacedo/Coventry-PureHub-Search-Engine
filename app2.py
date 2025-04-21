@@ -49,16 +49,6 @@ with open('publication_indexed_dictionary_abstract.json', 'r') as f:
     pub_abstract_index_stem = ujson.load(f)
 with open('publication_indexed_dictionary_abstract_lemma.json', 'r') as f:
     pub_abstract_index_lemma = ujson.load(f)
-
-
-
-#ACHO QUE NAO ESTAMOS A USAR
-# Carregar os índices específicos para o grupo LIB
-with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
-    lib_index = ujson.load(f)
-
-
-
 with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
     lib_texts = ujson.load(f)
 with open('author_names.json', 'r') as f:
@@ -80,6 +70,15 @@ with open('pub_linksPDF.json', 'r') as f:
 with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
     pub_group_links = ujson.load(f)
 
+
+#ACHO QUE NAO ESTAMOS A USAR
+# Carregar os índices específicos para o grupo LIB
+with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
+    lib_index = ujson.load(f)
+
+
+
+#-------- FUNÇÕES PARA USAR NA LEMATIZAÇÃO
 # Função para converter POS tags para o formato WordNet
 def get_wordnet_pos(treebank_tag):
     if treebank_tag.startswith('J'):
@@ -111,6 +110,8 @@ def enhanced_lemmatize(text):
 
     return ' '.join(lemmas)
 
+
+#-------- FUNÇÕES PARA CALCULAR SIMILARIDADE
 #Número de vezes que a palavra aparece dividido pelo número de palavras no documento
 def tf(word, document):
     return document.count(word) / len(document)
@@ -182,6 +183,8 @@ def cos_sim(mat_A, mat_B):
         matriz_sim.append(cosine_similarities)
     return matriz_sim
 
+
+#-------- PESQUISAR UTILIZANDO QUERIES COM OS OPERADORES LÓGICOS AND, OR, NOT
 def query_to_vector(query, word_to_index, corpus):
 
     num_words = len(word_to_index)
@@ -370,6 +373,8 @@ def parse_query(query):
 
     return and_groups, not_terms
 
+
+# Função pesquisa com AND ou OR
 def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Sklearn function"): # a que eu fiz que considera a query toda
     if stem_lema == 2:  # se lematizacao
         pub_index = pub_index_lemma
@@ -738,138 +743,8 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
 
     return output_data
 
-#-----------Bigramas e trigramas
 
-# Para os títulos:
-with open('pubname_bigram_index.json', 'r', encoding='utf-8') as f:
-    pubname_bigram_index = ujson.load(f)
-with open('pubname_trigram_index.json', 'r', encoding='utf-8') as f:
-    pubname_trigram_index = ujson.load(f)
-
-# Para os abstracts:
-with open('abstract_bigram_index.json', 'r', encoding='utf-8') as f:
-    abstract_bigram_index = ujson.load(f)
-with open('abstract_trigram_index.json', 'r', encoding='utf-8') as f:
-    abstract_trigram_index = ujson.load(f)
-
-
-# Carregar nomes das publicações
-with open('pub_name.json', 'r') as f:
-    publication = f.read()
-pubName = ujson.loads(publication)
-
-# Carregar nomes das publicações
-with open('pub_abstract.json', 'r') as f:
-    publication = f.read()
-pubName = ujson.loads(publication)
-
-
-def search_ngrams_only(input_text, operator_val, search_type = "publication", rank_by="Sklearn function"):
-    """
-    Pesquisa exclusiva em bigramas e trigramas com operadores lógicos
-    Args:
-        input_text: texto de pesquisa (frases entre aspas com operadores AND/OR)
-        operator_val: 1 (AND), 2 (OR)
-        search_type: "publication" ou "abstract"
-        rank_by: metodo de ranking
-    """
-    output_data = {}
-
-    # Selecionar o índice correto baseado no tipo de pesquisa
-    if search_type == "publication":
-        bigram_index = pubname_bigram_index
-        trigram_index = pubname_trigram_index
-        with open('pub_name.json', 'r') as f:
-            pub_texts = ujson.load(f)
-    elif search_type == "abstract":
-        bigram_index = abstract_bigram_index
-        trigram_index = abstract_trigram_index
-        with open('pub_abstract.json', 'r') as f:
-            pub_texts = ujson.load(f)
-    else:
-        return {}
-
-    # Extrair frases entre aspas (obrigatório para esta função)
-    phrases = re.findall(r'"(.*?)"', input_text)
-    if not phrases:
-        return {}  # Requer pelo menos uma frase entre aspas
-
-    # Processar cada frase identificada (exata, sem processamento)
-    all_ngram_docs = []
-    invalid_phrases = []
-
-    for phrase in phrases:
-        phrase_lower = phrase.lower()
-        phrase_words = phrase_lower.split()
-        ngram_length = len(phrase_words)
-
-        # Verificar se é bigrama ou trigrama válido
-        if ngram_length == 2:
-            if phrase_lower in bigram_index:
-                all_ngram_docs.append(set(bigram_index[phrase_lower]))
-            else:
-                invalid_phrases.append(phrase)
-        elif ngram_length == 3:
-            if phrase_lower in trigram_index:
-                all_ngram_docs.append(set(trigram_index[phrase_lower]))
-            else:
-                invalid_phrases.append(phrase)
-        else:
-            invalid_phrases.append(phrase)
-
-    # Tratamento para frases inválidas
-    if invalid_phrases:
-        if operator_val == 1:  # AND - todas devem ser válidas
-            return {}
-        # Para OR, apenas ignoramos as inválidas e continuamos com as válidas
-
-    # Aplicar operador lógico apenas entre n-grams válidos
-    final_docs = set()
-
-    if operator_val == 1:  # AND - TODOS os n-grams devem estar presentes
-        if all_ngram_docs:
-            final_docs = set.intersection(*all_ngram_docs)
-        else:
-            return {}
-    elif operator_val == 2:  # OR - PELO MENOS UM n-gram deve estar presente
-        if all_ngram_docs:
-            final_docs = set.union(*all_ngram_docs)
-        else:
-            return {}
-
-    if not final_docs:
-        return {}
-
-    # Converter para lista e preparar para ranking
-    final_docs = list(final_docs)
-    docs_texts = [pub_texts[doc_id] for doc_id in final_docs]
-
-    # Preparar query para TF-IDF (usando todas as palavras dos n-grams)
-    query_text = ' '.join(phrase.lower() for phrase in phrases)
-
-    # Aplicar ranking
-    if rank_by == "Sklearn function":
-        tfidf_matrix = tfidf.fit_transform(docs_texts)
-        query_vector = tfidf.transform([query_text])
-        cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
-
-        for idx, doc_id in enumerate(final_docs):
-            output_data[doc_id] = cosine_scores[idx][0]
-    else:
-        tokenized_docs = [doc.split() for doc in docs_texts]
-        word_set = list(set(sum(tokenized_docs, [])))
-        word_to_index = {word: i for i, word in enumerate(word_set)}
-
-        doc_vectors = tf_idf_vectorizer(tokenized_docs)
-        query_vec = query_to_vector(query_text.split(), word_to_index, tokenized_docs)
-        cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
-
-        for idx, doc_id in enumerate(final_docs):
-            output_data[doc_id] = cosine_output[idx]
-
-    return output_data
-
-#-----------------para indices pdf do grupo de pesquisa LIB
+#----------- INDICES PDF LIB
 # Função para carregar os índices mapeados de dic_indices_pdfs.json
 def load_pdf_index_mapping():
     with open('dic_indices_pdfs.json', 'r', encoding='utf-8') as f:
@@ -887,7 +762,7 @@ with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
 with open('pdf_list_lemma.json', 'r', encoding='utf-8') as f:
     lib_texts_lema = ujson.load(f)
 
-# Função de pesquisa
+#-------- PESQUISA NOS PDFS LIB
 def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn function"): #1º função que segue o raciocinio da ja feita
 
     output_data = {}
@@ -1326,6 +1201,129 @@ def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function")
     print(f"output aqui:{output_data}")
     return output_data
 
+
+#----------- BIGRAMAS E TRIGRAMAS
+
+# Para os títulos:
+with open('pubname_bigram_index.json', 'r', encoding='utf-8') as f:
+    pubname_bigram_index = ujson.load(f)
+with open('pubname_trigram_index.json', 'r', encoding='utf-8') as f:
+    pubname_trigram_index = ujson.load(f)
+
+# Para os abstracts:
+with open('abstract_bigram_index.json', 'r', encoding='utf-8') as f:
+    abstract_bigram_index = ujson.load(f)
+with open('abstract_trigram_index.json', 'r', encoding='utf-8') as f:
+    abstract_trigram_index = ujson.load(f)
+
+#PESQUISA EM BIGRAMAS E TRIGRAMAS
+def search_ngrams_only(input_text, operator_val, search_type = "publication", rank_by="Sklearn function"):
+    """
+    Pesquisa exclusiva em bigramas e trigramas com operadores lógicos
+    Args:
+        input_text: texto de pesquisa (frases entre aspas com operadores AND/OR)
+        operator_val: 1 (AND), 2 (OR)
+        search_type: "publication" ou "abstract"
+        rank_by: metodo de ranking
+    """
+    output_data = {}
+
+    # Selecionar o índice correto baseado no tipo de pesquisa
+    if search_type == "publication":
+        bigram_index = pubname_bigram_index
+        trigram_index = pubname_trigram_index
+        with open('pub_name.json', 'r') as f:
+            pub_texts = ujson.load(f)
+    elif search_type == "abstract":
+        bigram_index = abstract_bigram_index
+        trigram_index = abstract_trigram_index
+        with open('pub_abstract.json', 'r') as f:
+            pub_texts = ujson.load(f)
+    else:
+        return {}
+
+    # Extrair frases entre aspas (obrigatório para esta função)
+    phrases = re.findall(r'"(.*?)"', input_text)
+    if not phrases:
+        return {}  # Requer pelo menos uma frase entre aspas
+
+    # Processar cada frase identificada (exata, sem processamento)
+    all_ngram_docs = []
+    invalid_phrases = []
+
+    for phrase in phrases:
+        phrase_lower = phrase.lower()
+        phrase_words = phrase_lower.split()
+        ngram_length = len(phrase_words)
+
+        # Verificar se é bigrama ou trigrama válido
+        if ngram_length == 2:
+            if phrase_lower in bigram_index:
+                all_ngram_docs.append(set(bigram_index[phrase_lower]))
+            else:
+                invalid_phrases.append(phrase)
+        elif ngram_length == 3:
+            if phrase_lower in trigram_index:
+                all_ngram_docs.append(set(trigram_index[phrase_lower]))
+            else:
+                invalid_phrases.append(phrase)
+        else:
+            invalid_phrases.append(phrase)
+
+    # Tratamento para frases inválidas
+    if invalid_phrases:
+        if operator_val == 1:  # AND - todas devem ser válidas
+            return {}
+        # Para OR, apenas ignoramos as inválidas e continuamos com as válidas
+
+    # Aplicar operador lógico apenas entre n-grams válidos
+    final_docs = set()
+
+    if operator_val == 1:  # AND - TODOS os n-grams devem estar presentes
+        if all_ngram_docs:
+            final_docs = set.intersection(*all_ngram_docs)
+        else:
+            return {}
+    elif operator_val == 2:  # OR - PELO MENOS UM n-gram deve estar presente
+        if all_ngram_docs:
+            final_docs = set.union(*all_ngram_docs)
+        else:
+            return {}
+
+    if not final_docs:
+        return {}
+
+    # Converter para lista e preparar para ranking
+    final_docs = list(final_docs)
+    docs_texts = [pub_texts[doc_id] for doc_id in final_docs]
+
+    # Preparar query para TF-IDF (usando todas as palavras dos n-grams)
+    query_text = ' '.join(phrase.lower() for phrase in phrases)
+
+    # Aplicar ranking
+    if rank_by == "Sklearn function":
+        tfidf_matrix = tfidf.fit_transform(docs_texts)
+        query_vector = tfidf.transform([query_text])
+        cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+        for idx, doc_id in enumerate(final_docs):
+            output_data[doc_id] = cosine_scores[idx][0]
+    else:
+        tokenized_docs = [doc.split() for doc in docs_texts]
+        word_set = list(set(sum(tokenized_docs, [])))
+        word_to_index = {word: i for i, word in enumerate(word_set)}
+
+        doc_vectors = tf_idf_vectorizer(tokenized_docs)
+        query_vec = query_to_vector(query_text.split(), word_to_index, tokenized_docs)
+        cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+
+        for idx, doc_id in enumerate(final_docs):
+            output_data[doc_id] = cosine_output[idx]
+
+    return output_data
+
+
+#---------FUNÇÃO APP
 def app():
     # Load and display image
     image = Image.open('DEM_thumbnail.jpg')
@@ -1615,7 +1613,7 @@ def app():
 
 
 
-#Mostrar resultados de pesquisas:
+#-------MOSTRAR RESULTADOS DE PESQUISAS
 
 with open('pdf_texts.json', 'r') as f:
     pdf_texts_complete = ujson.load(f)
@@ -1624,6 +1622,8 @@ def show_LIB_results2(output_data, input_text=None, stem_lema=None):
     # Carregar os dados completos
     aa = 0  # contador de resultados
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
+
+    st.info(f"Showing results for: {len(rank_sorting)}")
 
     map_lib_to_pdf = load_pdf_index_mapping()
 
@@ -1729,6 +1729,11 @@ def show_LIB_results2(output_data, input_text=None, stem_lema=None):
             st.markdown(f"**{pub_cu_author[id_val].strip()}**")
             st.markdown(f"*{pub_name[id_val].strip()}*")
 
+            # Só mostra o grupo de investigação se existir
+            groups = pub_groups[id_val]
+            # Só mostrar se for uma lista com conteúdo
+            if isinstance(groups, list) and groups:
+                st.markdown(f"**{', '.join(groups)}**")
 
             # Obter e mostrar excerto relevante
             pdf_text = ""
@@ -1853,17 +1858,35 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
 
             if search_type == "Publications":
                 content = pub_name[id_val].strip()
-                st.markdown(f"**{pub_cu_author[id_val].strip()}**")
+                st.markdown(f"**{author_name[id_val].strip()}**")
                 st.markdown(f"*{content}*")
+
+                # Só mostra o grupo de investigação se existir
+                groups = pub_groups[id_val]
+                # Só mostrar se for uma lista com conteúdo
+                if isinstance(groups, list) and groups:
+                    st.markdown(f"**{', '.join(groups)}**")
 
             elif search_type == "Authors":
                 st.markdown(f"**{author_name[id_val].strip()}**")
                 st.markdown(f"*{pub_name[id_val].strip()}*")
 
+                # Só mostra o grupo de investigação se existir
+                groups = pub_groups[id_val]
+                # Só mostrar se for uma lista com conteúdo
+                if isinstance(groups, list) and groups:
+                    st.markdown(f"**{', '.join(groups)}**")
+
             elif search_type == "Abstracts":
                 abstract = pub_abstract[id_val]
                 st.markdown(f"**{author_name[id_val].strip()}**")
                 st.markdown(f"*{pub_name[id_val].strip()}*")
+
+                # Só mostra o grupo de investigação se existir
+                groups = pub_groups[id_val]
+                # Só mostrar se for uma lista com conteúdo
+                if isinstance(groups, list) and groups:
+                    st.markdown(f"**{', '.join(groups)}**")
 
                 content = highlight_search_terms(abstract, original_terms, search_terms)
                 st.markdown(content)
@@ -1879,8 +1902,8 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
     if aa == 0:
         st.info("No results found. Please try again.")
 
-#Apresentar as publicações por reasearch_group
 
+#-------Apresentar as publicações por reasearch_group:
 def get_publications_by_group():
     """Organiza todas as publicações por grupo de pesquisa"""
     groups_dict = {}
@@ -1932,83 +1955,6 @@ def show_group_publications(group_name):
         aa += 1
 
     st.info(f"Results shown: {aa}")
-
-
-
-#-------------------------funções iniciais
-def show_results2(output_data, search_type):   #função inicial
-    aa = 0
-    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True) #Ordena os resultados pela pontuação de similaridade
-    print(f"rank is {rank_sorting}")
-    # Show the total number of research results
-    st.info(f"Showing results for: {len(rank_sorting)}") #mostra resultados pela ordem decrescente da pontuação
-
-    # Show the cards
-    N_cards_per_row = 3
-    for n_row, (id_val, ranking) in enumerate(rank_sorting):
-        i = n_row % N_cards_per_row
-        if i == 0:
-            st.write("---")
-            cols = st.columns(N_cards_per_row, gap="large")
-        # Draw the card
-        with cols[n_row % N_cards_per_row]:
-            if search_type == "Publications":
-                st.caption(f"{pub_date[id_val].strip()}")
-                st.markdown(f"**{pub_cu_author[id_val].strip()}**")
-                st.markdown(f"*{pub_name[id_val].strip()}*")
-                st.markdown(f"**{pub_url[id_val]}**")
-            elif search_type == "Authors":
-                st.caption(f"{pub_date[id_val].strip()}")
-                st.markdown(f"**{author_name[id_val].strip()}**")
-                st.markdown(f"*{pub_name[id_val].strip()}*")
-                st.markdown(f"**{pub_url[id_val]}**")
-                st.markdown(f"Ranking: {ranking[0]:.2f}")
-            elif search_type == "Abstracts":
-                st.caption(f"{pub_date[id_val].strip()}")
-                st.markdown(f"**{author_name[id_val].strip()}**")
-                st.markdown(f"*{pub_name[id_val].strip()}*")
-                st.markdown(f"**{pub_url[id_val]}**")
-                st.markdown(f"**{pub_abstract[id_val]}**")
-
-        aa += 1
-
-    if aa == 0:
-        st.info("No results found. Please try again.")
-    else:
-        st.info(f"Results shown for: {aa}")
-def show_LIB_results(output_data): #função inicial
-    # Carregar os dados completos
-    aa = 0 #contador de resultados
-    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
-
-    # Show the total number of research results
-    st.info(f"Showing results for: {len(rank_sorting)}")
-
-    # Show the cards
-    N_cards_per_row = 3
-    for n_row, (id_val, ranking) in enumerate(rank_sorting): #id_val: índice do documento e ranking: score de similaridade
-        i = n_row % N_cards_per_row
-        if i == 0:
-            st.write("---")
-            cols = st.columns(N_cards_per_row, gap="large")
-        # Draw the card
-        with cols[n_row % N_cards_per_row]:
-            st.caption(f"{pub_date[id_val].strip()}")
-            st.markdown(f"**{pub_cu_author[id_val].strip()}**")
-            st.markdown(f"*{pub_name[id_val].strip()}*")
-            st.markdown(f"**{pub_url[id_val]}**")
-            # Se tiver link para PDF
-            pub = pub_group_links[id_val]
-            if pub.get('link'):
-                st.markdown(f"**[Download PDF]({pub.get('link', '')})**")
-
-        aa += 1
-
-    if aa == 0:
-        st.info("No results found. Please try again.")
-    else:
-        st.info(f"Results shown for: {aa}")
-
 
 
 if __name__ == '__main__':
