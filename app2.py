@@ -732,21 +732,25 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
     return output_data
 
 #-----------Bigramas e trigramas
-#Para os titulos:
+
+# Para os títulos:
 with open('pubname_bigram_index.json', 'r', encoding='utf-8') as f:
-    bigram_index = ujson.load(f)
+    pubname_bigram_index = ujson.load(f)
 with open('pubname_trigram_index.json', 'r', encoding='utf-8') as f:
-    trigram_index = ujson.load(f)
+    pubname_trigram_index = ujson.load(f)
+
+# Para os abstracts:
+with open('abstract_bigram_index.json', 'r', encoding='utf-8') as f:
+    abstract_bigram_index = ujson.load(f)
+with open('abstract_trigram_index.json', 'r', encoding='utf-8') as f:
+    abstract_trigram_index = ujson.load(f)
+
+
 # Carregar nomes das publicações
 with open('pub_name.json', 'r') as f:
     publication = f.read()
 pubName = ujson.loads(publication)
 
-#Para os abstracts:
-with open('abstract_bigram_index.json', 'r', encoding='utf-8') as f:
-    bigram_index = ujson.load(f)
-with open('abstract_trigram_index.json', 'r', encoding='utf-8') as f:
-    trigram_index = ujson.load(f)
 # Carregar nomes das publicações
 with open('pub_abstract.json', 'r') as f:
     publication = f.read()
@@ -759,9 +763,24 @@ def search_ngrams_only(input_text, operator_val, search_type = "publication", ra
     Args:
         input_text: texto de pesquisa (frases entre aspas com operadores AND/OR)
         operator_val: 1 (AND), 2 (OR)
+        search_type: "publication" ou "abstract"
         rank_by: metodo de ranking
     """
     output_data = {}
+
+    # Selecionar o índice correto baseado no tipo de pesquisa
+    if search_type == "publication":
+        bigram_index = pubname_bigram_index
+        trigram_index = pubname_trigram_index
+        with open('pub_name.json', 'r') as f:
+            pub_texts = ujson.load(f)
+    elif search_type == "abstract":
+        bigram_index = abstract_bigram_index
+        trigram_index = abstract_trigram_index
+        with open('pub_abstract.json', 'r') as f:
+            pub_texts = ujson.load(f)
+    else:
+        return {}
 
     # Extrair frases entre aspas (obrigatório para esta função)
     phrases = re.findall(r'"(.*?)"', input_text)
@@ -791,7 +810,7 @@ def search_ngrams_only(input_text, operator_val, search_type = "publication", ra
         else:
             invalid_phrases.append(phrase)
 
-    # Tratamento para frases inválidas (não são bigramas/trigramas ou não existem)
+    # Tratamento para frases inválidas
     if invalid_phrases:
         if operator_val == 1:  # AND - todas devem ser válidas
             return {}
@@ -805,7 +824,6 @@ def search_ngrams_only(input_text, operator_val, search_type = "publication", ra
             final_docs = set.intersection(*all_ngram_docs)
         else:
             return {}
-
     elif operator_val == 2:  # OR - PELO MENOS UM n-gram deve estar presente
         if all_ngram_docs:
             final_docs = set.union(*all_ngram_docs)
@@ -817,7 +835,7 @@ def search_ngrams_only(input_text, operator_val, search_type = "publication", ra
 
     # Converter para lista e preparar para ranking
     final_docs = list(final_docs)
-    docs_texts = [pubName[doc_id] for doc_id in final_docs]
+    docs_texts = [pub_texts[doc_id] for doc_id in final_docs]
 
     # Preparar query para TF-IDF (usando todas as palavras dos n-grams)
     query_text = ' '.join(phrase.lower() for phrase in phrases)
@@ -1304,21 +1322,20 @@ def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function")
 def app():
     # Load and display image
     image = Image.open('DEM_thumbnail.jpg')
-    col1, col2, col3 = st.columns([1, 4, 1])  # margem-esquerda, imagem, margem-direita
+    col1, col2, col3 = st.columns([1, 4, 1])
     with col2:
         st.image(image, width=500)
 
     # Botões para alternar entre modos de pesquisa
     if "mode" not in st.session_state:
-        st.session_state.mode = "general"  # default
+        st.session_state.mode = "general"
 
-    # Layout com colunas para centralizar os botões
-    col1, col2, col3 = st.columns([2,3,2])  # margem esquerda e direita
+    col1, col2, col3 = st.columns([2,3,2])
     with col1:
         if st.button("General Search"):
             st.session_state.mode = "general"
 
-    col1, col2, col3 = st.columns([2, 3, 2])  # margem esquerda e direita
+    col1, col2, col3 = st.columns([2, 3, 2])
     with col1:
         if st.button("LIB Mathematics Search"):
             st.session_state.mode = "lib"
@@ -1326,38 +1343,6 @@ def app():
     st.markdown("---")
 
     input_text = st.text_input("Search research:", key="query_input")
-
-    search_mode = st.radio(
-        "Search mode:",
-        ["Regular search", "Phrase search"],
-        index=0,
-        key="search_mode",
-        horizontal=True,
-    )
-
-    operator_val = st.radio(
-        "Search Filters",
-        ["AND", "OR", "Logical operators"],
-        index=1,
-        key="operator_input",
-        horizontal=True,
-    )
-
-    stem_lema = st.radio(
-        "Search with:",
-        ["Stemming", "Lemmatization"],
-        index=0,
-        key="stem_lema_input",
-        horizontal=True,
-    )
-
-    rank_by = st.radio(
-        "Rank with:",
-        ["Sklearn function", "Use Custom tf-idf"],
-        index=0,
-        key="rank_system",
-        horizontal=True,
-    )
 
     if st.session_state.mode == "general":
         search_type = st.radio(
@@ -1368,45 +1353,109 @@ def app():
             horizontal=True,
         )
 
+        # Mostrar opção de search mode apenas para Publications e Abstracts
+        if search_type in ['Publications', 'Abstracts']:
+            search_mode = st.radio(
+                "Search mode:",
+                ["Regular search", "Phrase search"],
+                index=0,
+                key="search_mode",
+                horizontal=True,
+            )
+        else:
+            search_mode = "Regular search"  # Força pesquisa regular para Authors
+
+        operator_val = st.radio(
+            "Search Filters",
+            ["AND", "OR", "Logical operators"],
+            index=1,
+            key="operator_input",
+            horizontal=True,
+        )
+
+        # Mostrar stem/lema apenas para regular search
+        if search_mode == "Regular search":
+            stem_lema = st.radio(
+                "Search with:",
+                ["Stemming", "Lemmatization"],
+                index=0,
+                key="stem_lema_input",
+                horizontal=True,
+            )
+        else:
+            stem_lema = None
+
+        rank_by = st.radio(
+            "Rank with:",
+            ["Sklearn function", "Use Custom tf-idf"],
+            index=0,
+            key="rank_system",
+            horizontal=True,
+        )
+
         if st.button("SEARCH"):
             if search_mode == "Regular search":
                 if search_type == "Publications":
                     output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                                    2
-                                    if operator_val == "OR"
-                                    else 3
-                                ), "publication",  1 if stem_lema == "Stemming" else 2,
-                                              rank_by)
-
+                                    2 if operator_val == "OR" else 3
+                                ), "publication", 1 if stem_lema == "Stemming" else 2,
+                                rank_by)
                     show_results(output_data, search_type)
                 elif search_type == "Authors":
                     output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                                    2
-                                    if operator_val == "OR"
-                                    else 3
+                                    2 if operator_val == "OR" else 3
                                 ), "author", 1 if stem_lema == "Stemming" else 2,
-                                              rank_by)
-
+                                rank_by)
                     show_results(output_data, search_type)
                 elif search_type == "Abstracts":
                     output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
-                                    2
-                                    if operator_val == "OR"
-                                    else 3
+                                    2 if operator_val == "OR" else 3
                                 ), "abstract", 1 if stem_lema == "Stemming" else 2,
-                                              rank_by)
-
+                                rank_by)
                     show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
-            else:
+            else:  # Phrase search
                 if search_type == "Publications":
                     output_data = search_ngrams_only(
                         input_text,
                         1 if operator_val == 'AND' else 2,
+                        "publication",
+                        rank_by
+                    )
+                    show_results(output_data, search_type)
+                elif search_type == "Abstracts":
+                    output_data = search_ngrams_only(
+                        input_text,
+                        1 if operator_val == 'AND' else 2,
+                        "abstract",
                         rank_by
                     )
                     show_results(output_data, search_type)
 
     elif st.session_state.mode == "lib":
+        operator_val = st.radio(
+            "Search Filters",
+            ["AND", "OR", "Logical operators"],
+            index=1,
+            key="operator_input",
+            horizontal=True,
+        )
+
+        stem_lema = st.radio(
+            "Search with:",
+            ["Stemming", "Lemmatization"],
+            index=0,
+            key="stem_lema_input",
+            horizontal=True,
+        )
+
+        rank_by = st.radio(
+            "Rank with:",
+            ["Sklearn function", "Use Custom tf-idf"],
+            index=0,
+            key="rank_system",
+            horizontal=True,
+        )
+
         if st.button("SEARCH"):
             output_data = search_LIB_data(
                 input_text,
@@ -1416,10 +1465,8 @@ def app():
             )
             show_LIB_results2(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
 
-
 with open('pdf_texts.json', 'r') as f:
     pdf_texts_complete = ujson.load(f)
-
 
 def show_LIB_results2(output_data, input_text=None, stem_lema=None):
     # Carregar os dados completos
