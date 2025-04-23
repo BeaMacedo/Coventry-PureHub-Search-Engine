@@ -1322,246 +1322,6 @@ def search_ngrams_only(input_text, operator_val, search_type = "publication", ra
 
     return output_data
 
-
-
-
-#Bigramas e trigramas com logic operators - NAO ESTA A DAR
-#"roux en" or "y gastric" or "gastric banding" and "with severe"
-
-def parse_ngram_query_v2(query, bigram_index, trigram_index):
-
-    query = query.lower().strip()
-
-    # Extrair NOTs (opcional, se quiseres usar também)
-    not_terms = []
-    not_pattern = re.compile(r'\bnot\b\s+(?:"([^"]+)"|(\S+))')
-    for match in not_pattern.finditer(query):
-        not_term = match.group(1) if match.group(1) else match.group(2)
-        if not_term:
-            not_terms.append(not_term.strip())
-
-    query = not_pattern.sub('', query).strip()
-
-    # Adiciona espaço ao redor de operadores para facilitar o split
-    query = re.sub(r'\b(and|or)\b', r' \1 ', query)
-
-    # Divide por AND implícito e explícito
-    and_parts = re.split(r'\s+and\s+|\s+(?=")', query)
-
-    final_and_groups = []
-
-    for part in and_parts:
-        or_terms = [t.strip() for t in re.split(r'\s+or\s+', part) if t.strip()]
-        valid_terms = []
-
-        for term in or_terms:
-            match = re.match(r'"(.*?)"', term)
-            if match:
-                phrase = match.group(1).strip()
-                words = phrase.split()
-                if len(words) == 2:
-                    freq = len(bigram_index.get(phrase, []))
-                elif len(words) == 3:
-                    freq = len(trigram_index.get(phrase, []))
-                else:
-                    continue  # Ignorar n-grams inválidos
-                valid_terms.append((phrase, freq, len(words)))
-
-        # Ordenar por frequência (mais raro primeiro) e, em empate, pelos mais longos
-        valid_terms.sort(key=lambda x: (x[1], -x[2]))
-        final_and_groups.append([t[0] for t in valid_terms])
-
-    return final_and_groups, not_terms
-
-def search_ngrams_with_operators_v2(input_text, search_type="publication", rank_by="Sklearn function"):
-    if search_type == "publication":
-        bigram_index = pubname_bigram_index
-        trigram_index = pubname_trigram_index
-        with open('pub_name.json', 'r') as f:
-            pub_texts = ujson.load(f)
-    elif search_type == "abstract":
-        bigram_index = abstract_bigram_index
-        trigram_index = abstract_trigram_index
-        with open('pub_abstract.json', 'r') as f:
-            pub_texts = ujson.load(f)
-    else:
-        return {}
-
-    # Parse query com nova lógica
-    and_groups, not_terms = parse_ngram_query_v2(input_text, bigram_index, trigram_index)
-
-    # Processar NOTs
-    docs_to_exclude = set()
-    for ngram in not_terms:
-        words = ngram.split()
-        index = bigram_index if len(words) == 2 else trigram_index
-        docs_to_exclude.update(index.get(ngram, []))
-
-    # Processar AND groups
-    all_matching_docs = set()
-    for group in and_groups:
-        group_docs = None
-        for ngram in group:
-            words = ngram.split()
-            if len(words) not in (2, 3):
-                continue
-            index = bigram_index if len(words) == 2 else trigram_index
-            term_docs = set(index.get(ngram, []))
-
-            if group_docs is None:
-                group_docs = term_docs
-            else:
-                group_docs.intersection_update(term_docs)
-                if not group_docs:
-                    break
-        if group_docs:
-            all_matching_docs.update(group_docs)
-
-    # Remover os documentos excluídos
-    final_docs = all_matching_docs - docs_to_exclude
-    output_data = {}
-
-    if final_docs:
-        query_terms = [ngram for group in and_groups for ngram in group]
-        query_text = ' '.join(query_terms)
-
-        docs_texts = [pub_texts[doc_id] for doc_id in final_docs]
-        doc_ids = list(final_docs)
-
-        if rank_by == "Sklearn function":
-            tfidf_matrix = tfidf.fit_transform(docs_texts)
-            query_vector = tfidf.transform([query_text])
-            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
-            for idx, doc_id in enumerate(doc_ids):
-                output_data[doc_id] = cosine_scores[idx][0]
-        else:
-            tokenized_docs = [doc.split() for doc in docs_texts]
-            word_set = list(set(sum(tokenized_docs, [])))
-            word_to_index = {word: i for i, word in enumerate(word_set)}
-            doc_vectors = tf_idf_vectorizer(tokenized_docs)
-            query_vec = query_to_vector(query_text.split(), word_to_index, tokenized_docs)
-            cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
-            for idx, doc_id in enumerate(doc_ids):
-                output_data[doc_id] = cosine_output[idx]
-
-    return output_data
-
-def search_ngrams_only2(input_text, operator_val, search_type = "publication", rank_by="Sklearn function"):
-    """
-    Pesquisa exclusiva em bigramas e trigramas com operadores lógicos
-    Args:
-        input_text: texto de pesquisa (frases entre aspas com operadores AND/OR)
-        operator_val: 1 (AND), 2 (OR)
-        search_type: "publication" ou "abstract"
-        rank_by: metodo de ranking
-    """
-    if operator_val == 3:
-        return search_ngrams_with_operators_v2(input_text, search_type, rank_by)
-
-    output_data = {}
-
-    # Selecionar o índice correto baseado no tipo de pesquisa
-    if search_type == "publication":
-        bigram_index = pubname_bigram_index
-        trigram_index = pubname_trigram_index
-        with open('pub_name.json', 'r') as f:
-            pub_texts = ujson.load(f)
-    elif search_type == "abstract":
-        bigram_index = abstract_bigram_index
-        trigram_index = abstract_trigram_index
-        with open('pub_abstract.json', 'r') as f:
-            pub_texts = ujson.load(f)
-    else:
-        return {}
-
-    # Extrair frases entre aspas (obrigatório para esta função)
-    phrases = re.findall(r'"(.*?)"', input_text)
-    if not phrases:
-        return {}  # Requer pelo menos uma frase entre aspas
-
-    # Processar cada frase identificada (exata, sem processamento)
-    all_ngram_docs = []
-    invalid_phrases = []
-
-    for phrase in phrases:
-        phrase_lower = phrase.lower()
-        phrase_words = phrase_lower.split()
-        ngram_length = len(phrase_words)
-
-        # Verificar se é bigrama ou trigrama válido
-        if ngram_length == 2:
-            if phrase_lower in bigram_index:
-                all_ngram_docs.append(set(bigram_index[phrase_lower]))
-            else:
-                invalid_phrases.append(phrase)
-        elif ngram_length == 3:
-            if phrase_lower in trigram_index:
-                all_ngram_docs.append(set(trigram_index[phrase_lower]))
-            else:
-                invalid_phrases.append(phrase)
-        else:
-            invalid_phrases.append(phrase)
-
-    # Tratamento para frases inválidas
-    if invalid_phrases:
-        if operator_val == 1:  # AND - todas devem ser válidas
-            return {}
-        # Para OR, apenas ignoramos as inválidas e continuamos com as válidas
-
-    # Aplicar operador lógico apenas entre n-grams válidos
-    final_docs = set()
-
-    if operator_val == 1:  # AND - TODOS os n-grams devem estar presentes
-        if all_ngram_docs:
-            final_docs = set.intersection(*all_ngram_docs)
-        else:
-            return {}
-    elif operator_val == 2:  # OR - PELO MENOS UM n-gram deve estar presente
-        if all_ngram_docs:
-            final_docs = set.union(*all_ngram_docs)
-        else:
-            return {}
-
-    if not final_docs:
-        return {}
-
-    # Converter para lista e preparar para ranking
-    final_docs = list(final_docs)
-    docs_texts = [pub_texts[doc_id] for doc_id in final_docs]
-
-    # Preparar query para TF-IDF (usando todas as palavras dos n-grams)
-    query_text = ' '.join(phrase.lower() for phrase in phrases)
-
-    # Aplicar ranking
-    if rank_by == "Sklearn function":
-        tfidf_matrix = tfidf.fit_transform(docs_texts)
-        query_vector = tfidf.transform([query_text])
-        cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
-
-        for idx, doc_id in enumerate(final_docs):
-            output_data[doc_id] = cosine_scores[idx][0]
-    else:
-        tokenized_docs = [doc.split() for doc in docs_texts]
-        word_set = list(set(sum(tokenized_docs, [])))
-        word_to_index = {word: i for i, word in enumerate(word_set)}
-
-        doc_vectors = tf_idf_vectorizer(tokenized_docs)
-        query_vec = query_to_vector(query_text.split(), word_to_index, tokenized_docs)
-        cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
-
-        for idx, doc_id in enumerate(final_docs):
-            output_data[doc_id] = cosine_output[idx]
-
-    return output_data
-
-
-
-
-
-
-
-
-
 #---------FUNÇÃO APP
 def app():
     # Load and display image
@@ -1609,13 +1369,23 @@ def app():
         else:
             search_mode = "Regular search"  # Pesquisa regular para Authors
 
-        operator_val = st.radio(
-            "Search Filters",
-            ["AND", "OR", "Logical operators"],
-            index=1,
-            key="operator_input",
-            horizontal=True,
-        )
+        # Mostrar operadores diferentes dependendo do modo de pesquisa
+        if search_mode == "Regular search":
+            operator_val = st.radio(
+                "Search Filters",
+                ["AND", "OR", "Logical operators"],
+                index=1,
+                key="operator_input",
+                horizontal=True,
+            )
+        else:  # Phrase search - mostrar apenas AND e OR
+            operator_val = st.radio(
+                "Search Filters",
+                ["AND", "OR"],
+                index=1,
+                key="operator_input_phrase",
+                horizontal=True,
+            )
 
         # Mostrar stem/lema apenas para regular search
         if search_mode == "Regular search":
@@ -1736,13 +1506,23 @@ def app():
             else:
                 search_mode = "Regular search"
 
-            operator_val = st.radio(
-                "Search Filters",
-                ["AND", "OR", "Logical operators"],
-                index=1,
-                key="operator_group",
-                horizontal=True,
-            )
+            # Mostrar operadores diferentes dependendo do modo de pesquisa
+            if search_mode == "Regular search":
+                operator_val = st.radio(
+                    "Search Filters",
+                    ["AND", "OR", "Logical operators"],
+                    index=1,
+                    key="operator_group",
+                    horizontal=True,
+                )
+            else:  # Phrase search - mostrar apenas AND e OR
+                operator_val = st.radio(
+                    "Search Filters",
+                    ["AND", "OR"],
+                    index=1,
+                    key="operator_group_phrase",
+                    horizontal=True,
+                )
 
             if search_mode == "Regular search":
                 stem_lema = st.radio(
