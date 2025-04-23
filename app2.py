@@ -602,7 +602,7 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
 
                 if rank_by == "Sklearn function":
                     temp_file = tfidf.fit_transform(temp_file) #Transforma os textos em vetores TF-IDF
-                    #print(f"stem_word_file_or: {stem_word_file}")
+                    print(f"stem_word_file_or: {stem_word_file}")
                     cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file)) #Calcula a similaridade do cosseno entre a pesquisa e os textos encontrados
 
                     print(f"pointer_or:{pointer}")
