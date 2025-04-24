@@ -141,7 +141,7 @@ def remover_referencias(texto):
     # Retorna o texto original se a palavra 'references' não for encontrada
     return texto
 
-def descarregar_pdfs_LIB():
+def descarregar_pdfs_LIB(limite=40):
     with open("scraper_results_groups_links.json", "r", encoding="utf-8") as f:
         publicacoes = json.load(f)
 
@@ -149,7 +149,7 @@ def descarregar_pdfs_LIB():
     pasta_destino = "pdfs_LIBMathematicsSupportCentre"
     os.makedirs(pasta_destino, exist_ok=True)
 
-    grupo_alvo = "Centre for Healthcare and Communities"
+    grupo_alvo = "LIB Mathematics Support Centre"
     count = 0
 
     textos_limpos = []
@@ -161,6 +161,11 @@ def descarregar_pdfs_LIB():
     index_invertido_lemma = {}
 
     for idx, pub in enumerate(publicacoes):
+        # Verifica se atingiu o limite
+        if count >= limite:
+            print(f"\n[⏹] Limite de {limite} PDFs atingido. Interrompendo downloads.")
+            break
+
         grupos = pub.get("research_group", [])
         pdf_url = pub.get("link")
         titulo = pub.get("name", "sem_titulo")

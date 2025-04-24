@@ -146,7 +146,7 @@ def tf_idf_vectorizer(corpus):
         new_word_vector = [0 for i in range(num_words)] #cria vetor de 0 do tamanho do vocabulário
         for word in document:
             # get the score
-            tf_idf_score = TF_IDF(word, document, corpus)
+            tf_idf_score = TF_IDF(word, document, corpus) # ve quantas vezes a palavra aparece no documento/len(documento)
             # next get the index for this word in our word vector
             word_index = word_to_index[word] #para saber em que posição do vetor deve ficar o score
             # populate the vector
@@ -155,6 +155,20 @@ def tf_idf_vectorizer(corpus):
         word_vectors.append(new_word_vector)
 
     return word_vectors
+
+def query_to_vector(query, word_to_index, corpus):
+
+    num_words = len(word_to_index)
+    query_vector = [0.0] * num_words
+
+    for word in query:
+        if word in word_to_index:
+            # Calcula TF-IDF apenas para palavras presentes no vocabulário
+            tf_idf_score = TF_IDF(word, query, corpus)
+            print(f"word_query: {word}, index: {word_to_index[word]}, score: {tf_idf_score}") #AAA
+            query_vector[word_to_index[word]] = tf_idf_score
+
+    return query_vector
 
 def costum_cosine_similarity(query_vector, doc_vectors):
     # Converter para arrays numpy para operações vetorizadas
@@ -166,6 +180,7 @@ def costum_cosine_similarity(query_vector, doc_vectors):
 
     # Calcular normas (magnitudes) dos vetores
     query_norm = np.linalg.norm(query_array)
+    print(f"query_norm: {query_norm}")
     doc_norms = np.linalg.norm(doc_matrix, axis=1)
 
     # Calcular similaridades (evitando divisão por zero)
@@ -189,18 +204,6 @@ def cos_sim(mat_A, mat_B):
     return matriz_sim
 
 #-------- PESQUISAR UTILIZANDO QUERIES COM OS OPERADORES LÓGICOS AND, OR, NOT
-def query_to_vector(query, word_to_index, corpus):
-
-    num_words = len(word_to_index)
-    query_vector = [0.0] * num_words
-
-    for word in query:
-        if word in word_to_index:
-            # Calcula TF-IDF apenas para palavras presentes no vocabulário
-            tf_idf_score = TF_IDF(word, query, corpus)
-            query_vector[word_to_index[word]] = tf_idf_score
-
-    return query_vector
 
 def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn function"):
     # Configuração dos índices
@@ -326,6 +329,7 @@ def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn f
 
             # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
             query_tokens = query_text.split()
+            print(f"word_to_index: {word_to_index}") #AAA
             query_vec = query_to_vector(query_tokens, word_to_index, tokenized_docs)
             cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
 
@@ -437,7 +441,7 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
         if len(pointer) == 0:
             return {}
 
-        # Coletar textos dos documentos encontrados
+        # Coleta os textos dos documentos encontrados
         temp_file = []
         for j in pointer:
             if search_type == "publication":
@@ -503,7 +507,7 @@ def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Skle
         pointer = list(pointer)
         print(f"pointer after list: {pointer}")
 
-        # Coleta textos dos documentos encontrados
+        # Coleta os textos dos documentos encontrados
         temp_file = []
         for j in pointer:
             if search_type == "publication":
@@ -736,7 +740,7 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                         elem = tf_idf_vectorizer(elem.split())[0] #lista de vetores tf-idf para cada documento, com as palabvras unicas de cada documento, logo as listas nao vao ter o mesmo tamanho
                         matrix.append(elem)
                         i += 1
-                    mat_inv = tf_idf_vectorizer(stem_word_file) #vai ser sempre 1 pq a palavra vai estar lá?
+                    mat_inv = tf_idf_vectorizer(stem_word_file)
                     cos_out = cos_sim(matrix, mat_inv)
                     for j in list(match_word):
                         output_data[j] = cos_out[list(match_word).index(j)]
@@ -1361,7 +1365,7 @@ def app():
         if search_type in ['Publications', 'Abstracts']:
             search_mode = st.radio(
                 "Search mode:",
-                ["Regular search", "Phrase search"],
+                ["Regular search", "Bigramas/Trigramas search"],
                 index=0,
                 key="search_mode",
                 horizontal=True,
@@ -1378,7 +1382,7 @@ def app():
                 key="operator_input",
                 horizontal=True,
             )
-        else:  # Phrase search - mostrar apenas AND e OR
+        else:  # Bigramas/Trigramas search - mostrar apenas AND e OR
             operator_val = st.radio(
                 "Search Filters",
                 ["AND", "OR"],
@@ -1410,7 +1414,7 @@ def app():
         if st.button("SEARCH"):
             if search_mode == "Regular search":
                 if search_type == "Publications":
-                    output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
+                    output_data = search_data(input_text, 1 if operator_val == 'AND' else (
                                     2 if operator_val == "OR" else 3
                                 ), "publication", 1 if stem_lema == "Stemming" else 2,
                                 rank_by)
@@ -1427,7 +1431,7 @@ def app():
                                 ), "abstract", 1 if stem_lema == "Stemming" else 2,
                                 rank_by)
                     show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
-            elif search_mode == "Phrase search":  # Phrase search
+            elif search_mode == "Bigramas/Trigramas search":  # Bigramas/Trigramas search
                 if search_type == "Publications":
                     output_data = search_ngrams_only(
                         input_text,
@@ -1498,7 +1502,7 @@ def app():
             if search_type in ['Publications', 'Abstracts']:
                 search_mode = st.radio(
                     "Search mode:",
-                    ["Regular search", "Phrase search"],
+                    ["Regular search", "Bigramas/Trigramas search"],
                     index=0,
                     key="search_mode_group",
                     horizontal=True,
@@ -1515,7 +1519,7 @@ def app():
                     key="operator_group",
                     horizontal=True,
                 )
-            else:  # Phrase search - mostrar apenas AND e OR
+            else:  # Bigramas/Trigramas search - mostrar apenas AND e OR
                 operator_val = st.radio(
                     "Search Filters",
                     ["AND", "OR"],
@@ -1573,7 +1577,7 @@ def app():
                         # Filtrar apenas os resultados que estão no grupo
                         output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
                         show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
-                else:  # Phrase search
+                else:  # Bigramas/Trigramas search
                     if search_type == "Publications":
                         output_data = search_ngrams_only(
                             input_text,
@@ -1623,20 +1627,20 @@ def app():
             )
 
             if st.button("SEARCH"):
-                output_data = search_LIB_data(
+                output_data = search_LIB_data2(
                     input_text,
                     1 if operator_val == 'AND' else (2 if operator_val == "OR" else 3),
                     1 if stem_lema == "Stemming" else 2,
                     rank_by
                 )
-                show_LIB_results2(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
+                show_LIB_results(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
 
 #-------MOSTRAR RESULTADOS DE PESQUISAS
 
 with open('pdf_texts.json', 'r') as f:
     pdf_texts_complete = ujson.load(f)
 
-def show_LIB_results2(output_data, input_text=None, stem_lema=None):
+def show_LIB_results(output_data, input_text=None, stem_lema=None):
     # Carregar os dados completos
     aa = 0  # contador de resultados
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
@@ -1746,6 +1750,7 @@ def show_LIB_results2(output_data, input_text=None, stem_lema=None):
             st.caption(f"{pub_date[id_val].strip()}")
             st.markdown(f"**{pub_cu_author[id_val].strip()}**")
             st.markdown(f"*{pub_name[id_val].strip()}*")
+            st.markdown(f"Ranking: {float(ranking):.2f}")
 
             # Só mostra o grupo de investigação se existir
             groups = pub_groups[id_val]
@@ -1884,8 +1889,8 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                 # Só mostrar se for uma lista com conteúdo
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
-                #st.markdown(f"Ranking: {ranking[0]:.2f}") #este se usar a search_data
-                st.markdown(f"Ranking: {float(ranking):.2f}")  # este se usar a search_data2
+                #st.markdown(f"Ranking: {float(ranking):.2f}")
+                st.markdown(f"Ranking: {ranking[0]:.2f}")
 
             elif search_type == "Authors":
                 st.markdown(f"**{author_name[id_val].strip()}**")
@@ -1921,8 +1926,6 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
 
     if aa == 0:
         st.info("No results found. Please try again.")
-
-#Para tentar mostrar evidenciado um dos bigrama/trigrama pesquisado nos resultados da pesquisa - NAO ESTA A DAR
 
 #-------Apresentar as publicações por reasearch_group:
 def get_publications_by_group():
