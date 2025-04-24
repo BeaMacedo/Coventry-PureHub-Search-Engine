@@ -278,7 +278,7 @@ def adicionar_pdf_links(): #adicionar links dos pdfs nos resultados das pesquisa
     driver.quit()
 
 # Executa a função
-adicionar_pdf_links()
+#adicionar_pdf_links()
 
 
 '''
