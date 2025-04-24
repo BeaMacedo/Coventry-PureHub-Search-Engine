@@ -126,7 +126,7 @@ def initCrawlerScraper(seed, max_profiles=500):
         ujson.dump(pub_data, f, indent=2)
 
 
-initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
+#initCrawlerScraper('https://pureportal.coventry.ac.uk/en/organisations/coventry-university/persons/', max_profiles=500)
 
 
 def get_abstract():
@@ -175,7 +175,7 @@ def get_abstract():
 
         driver.quit()
 
-get_abstract()
+#get_abstract()
 
 
 import re
@@ -232,9 +232,9 @@ def get_groups():
         driver.quit()  # Fechar o driver do Selenium
 
 
-get_groups()
+#get_groups()
 
-def adicionar_pdf_links(): #adicionar links dos pdfs nos resultados das pesquisas (odemos usar para isso, ou entao só colocar num grupo específico
+def adicionar_pdf_links(): #adicionar links dos pdfs nos resultados das pesquisas
     base_url = "https://pureportal.coventry.ac.uk"
     webOpt = webdriver.ChromeOptions()
     webOpt.add_experimental_option('excludeSwitches', ['enable-logging'])

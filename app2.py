@@ -49,8 +49,6 @@ with open('publication_indexed_dictionary_abstract.json', 'r') as f:
     pub_abstract_index_stem = ujson.load(f)
 with open('publication_indexed_dictionary_abstract_lemma.json', 'r') as f:
     pub_abstract_index_lemma = ujson.load(f)
-with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
-    lib_texts = ujson.load(f)
 with open('author_names.json', 'r') as f:
     author_name = ujson.load(f)
 with open('pub_name.json', 'r') as f:
@@ -72,9 +70,9 @@ with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
 
 
 #ACHO QUE NAO ESTAMOS A USAR
-# Carregar os índices específicos para o grupo LIB
+# Carregar os índices específicos para o grupo Centre
 with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
-    lib_index = ujson.load(f)
+    centre_index = ujson.load(f)
 
 
 
@@ -179,9 +177,9 @@ def costum_cosine_similarity(query_vector, doc_vectors):
     dot_products = np.dot(doc_matrix, query_array)
 
     # Calcular normas (magnitudes) dos vetores
-    query_norm = np.linalg.norm(query_array)
+    query_norm = np.linalg.norm(query_array) #raiz da soma dos quadrados de todos os elementos da matriz
     print(f"query_norm: {query_norm}")
-    doc_norms = np.linalg.norm(doc_matrix, axis=1)
+    doc_norms = np.linalg.norm(doc_matrix, axis=1) #axis = 1 para calcular a norma de cada linha/documento individualmente
 
     # Calcular similaridades (evitando divisão por zero)
     similarities = []
@@ -751,40 +749,39 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
 
     return output_data
 
-#----------- INDICES PDF LIB
+#----------- INDICES PDF Centre
 # Função para carregar os índices mapeados de dic_indices_pdfs.json
 def load_pdf_index_mapping():
     with open('dic_indices_pdfs.json', 'r', encoding='utf-8') as f:
-        map_pdf_to_lib = ujson.load(f)
+        map_pdf_to_centre = ujson.load(f)
     # Inverter o mapeamento: de índices globais para índices dos PDFs
-    map_lib_to_pdf = {v: int(k) for k, v in map_pdf_to_lib.items()}
-    return map_lib_to_pdf
+    map_centre_to_pdf = {v: int(k) for k, v in map_pdf_to_centre.items()}
+    return map_centre_to_pdf
 
 with open('pdfs_indexed_dictionary_stemm.json', 'r', encoding='utf-8') as f:
-    lib_index_stemm = ujson.load(f)
+    centre_index_stemm = ujson.load(f)
 with open('pdfs_indexed_dictionary_lema.json', 'r', encoding='utf-8') as f:
-    lib_index_lema = ujson.load(f)
+    centre_index_lema = ujson.load(f)
 with open('pdf_list_stemmed.json', 'r', encoding='utf-8') as f:
-    lib_texts_stemm = ujson.load(f)
+    centre_texts_stemm = ujson.load(f)
 with open('pdf_list_lemma.json', 'r', encoding='utf-8') as f:
-    lib_texts_lema = ujson.load(f)
+    centre_texts_lema = ujson.load(f)
 
-#-------- PESQUISA NOS PDFS LIB
-def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn function"): #1º função que segue o raciocinio da ja feita
+#-------- PESQUISA NOS PDFS Centre
+def search_Centre_data(input_text, operator_val,stem_lema, rank_by= "Sklearn function"): #1º função que segue o raciocinio da ja feita
 
     output_data = {}
 
     if stem_lema == 2:  # se lematizacao
-        lib_index = lib_index_lema
-        lib_texts = lib_texts_lema
+        centre_index = centre_index_lema
+        centre_texts = centre_texts_lema
 
     else:
-        lib_index = lib_index_stemm
-        #print(f"LIB_index: {LIB_index}")
-        lib_texts = lib_texts_stemm
+        centre_index = centre_index_stemm
+        centre_texts = centre_texts_stemm
 
     # Carregar o mapeamento de índices (apenas uma vez)
-    map_lib_to_pdf = load_pdf_index_mapping()
+    map_centre_to_pdf = load_pdf_index_mapping()
 
     # Para o operador OR (operator_val == 2)
     if operator_val == 2:  # Operador OR
@@ -813,17 +810,17 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
             print(f"stem_word {stem_word_file}")
 
             # Verificar se existe o índice para o token processado
-            if lib_index.get(stem_word_file[0].strip()):
-                pointer = lib_index.get(stem_word_file[0].strip())
+            if centre_index.get(stem_word_file[0].strip()):
+                pointer = centre_index.get(stem_word_file[0].strip())
 
             if len(pointer) == 0:
                 return {}
             else:
                 # Usar o mapeamento de índice para PDFs
                 for j in pointer:
-                    pdf_index = map_lib_to_pdf.get(j)
+                    pdf_index = map_centre_to_pdf.get(j)
                     if pdf_index is not None:
-                        temp_file.append(lib_texts[pdf_index])
+                        temp_file.append(centre_texts[pdf_index])
 
                 if rank_by == "Sklearn function":
                     temp_file = tfidf.fit_transform(temp_file)
@@ -831,7 +828,7 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
 
                     # Atribuir os resultados ao output_data
                     for j in pointer:
-                        pdf_index = map_lib_to_pdf.get(j)
+                        pdf_index = map_centre_to_pdf.get(j)
                         #print("pdf_index", pdf_index)
                         if pdf_index is not None:
                             output_data[j] = cosine_output[pointer.index(j)]
@@ -854,7 +851,7 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
                     #print(f"mat_inv(query)={mat_inv}") #mat_inv(query)=[[1.0]] vai dar sempre so um valor pq é uma palavra e vai ser sempre 1 pq aparece na query de pesquisa obviamente
                     cos_out = cos_sim(matrix, mat_inv) #similaridade entre cada vetor do documento e a query
                     for j in pointer:
-                        pdf_index = map_lib_to_pdf.get(j)
+                        pdf_index = map_centre_to_pdf.get(j)
                         if pdf_index is not None:
                             output_data[j] = cos_out[pointer.index(j)]
                             print(f"output_data {j}: {output_data[j]} ")
@@ -888,8 +885,8 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
             stem_word_file.append(stem_temp.strip())
 
             # Verificar se existe o índice para o token processado
-            if lib_index.get(stem_word_file[0].strip()):
-                set1 = set(lib_index.get(stem_word_file[0].strip()))
+            if centre_index.get(stem_word_file[0].strip()):
+                set1 = set(centre_index.get(stem_word_file[0].strip()))
                 pointer.extend(list(set1))
 
             # Atualizar a lista match_word para documentos que atendem a todos os critérios
@@ -907,9 +904,9 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
             else:
                 # Usar o mapeamento de índice para PDFs
                 for j in list(match_word):
-                    pdf_index = map_lib_to_pdf.get(j)
+                    pdf_index = map_centre_to_pdf.get(j)
                     if pdf_index is not None:
-                        temp_file.append(lib_texts[pdf_index])
+                        temp_file.append(centre_texts[pdf_index])
 
                 if rank_by == "Sklearn function":
                     temp_file = tfidf.fit_transform(temp_file)
@@ -917,7 +914,7 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
 
                     # Atribuir os resultados ao output_data
                     for j in list(match_word):
-                        pdf_index = map_lib_to_pdf.get(j)
+                        pdf_index = map_centre_to_pdf.get(j)
                         if pdf_index is not None:
                             output_data[j] = cosine_output[list(match_word).index(j)]
                 else:
@@ -937,7 +934,7 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
                     # print(f"mat_inv(query)={mat_inv}") #mat_inv(query)=[[1.0]] vai dar sempre so um valor pq é uma palavra e vai ser sempre 1 pq aparece na query de pesquisa obviamente
                     cos_out = cos_sim(matrix, mat_inv)  # similaridade entre cada vetor do documento e a query
                     for j in list(match_word):
-                        pdf_index = map_lib_to_pdf.get(j)
+                        pdf_index = map_centre_to_pdf.get(j)
                         if pdf_index is not None:
                             output_data[j] = cos_out[list(match_word).index(j)]
                             print(f"output_data {j}: {output_data[j]} ")
@@ -946,9 +943,9 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
                 output_data = {}
             else:
                 for j in list(match_word):
-                    pdf_index = map_lib_to_pdf.get(j)
+                    pdf_index = map_centre_to_pdf.get(j)
                     if pdf_index is not None:
-                        temp_file.append(lib_texts[pdf_index])
+                        temp_file.append(centre_texts[pdf_index])
 
                 if rank_by == "Sklearn function":
                     temp_file = tfidf.fit_transform(temp_file)
@@ -956,7 +953,7 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
 
                     # Atribuir os resultados ao output_data
                     for j in list(match_word):
-                        pdf_index = map_lib_to_pdf.get(j)
+                        pdf_index = map_centre_to_pdf.get(j)
                         if pdf_index is not None:
                             output_data[j] = cosine_output[list(match_word).index(j)]
                 else:
@@ -976,24 +973,24 @@ def search_LIB_data(input_text, operator_val,stem_lema, rank_by= "Sklearn functi
                     # print(f"mat_inv(query)={mat_inv}") #mat_inv(query)=[[1.0]] vai dar sempre so um valor pq é uma palavra e vai ser sempre 1 pq aparece na query de pesquisa obviamente
                     cos_out = cos_sim(matrix, mat_inv)  # similaridade entre cada vetor do documento e a query
                     for j in list(match_word):
-                        pdf_index = map_lib_to_pdf.get(j)
+                        pdf_index = map_centre_to_pdf.get(j)
                         if pdf_index is not None:
                             output_data[j] = cos_out[list(match_word).index(j)]
                             print(f"output_data {j}: {output_data[j]} ")
 
     elif operator_val == 3:  # operadores lógicos (NOT, AND, OR)
-        # Usa a função search_with_operators_LIB já existente para operadores complexos
-        output_data = search_with_operators_LIB(input_text, stem_lema, rank_by)
+        # Usa a função search_with_operators_Centre já existente para operadores complexos
+        output_data = search_with_operators_Centre(input_text, stem_lema, rank_by)
 
     return output_data
 
-def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn function"): #considera a query toda no calculo da similaridade
+def search_Centre_data2(input_text, operator_val, stem_lema, rank_by="Sklearn function"): #considera a query toda no calculo da similaridade
     # Configuração dos índices conforme stem_lema
-    lib_index = lib_index_lema if stem_lema == 2 else lib_index_stemm
-    lib_texts = lib_texts_lema if stem_lema == 2 else lib_texts_stemm
+    centre_index = centre_index_lema if stem_lema == 2 else centre_index_stemm
+    centre_texts = centre_texts_lema if stem_lema == 2 else centre_texts_stemm
 
     # Carregar o mapeamento de índices (apenas uma vez)
-    map_lib_to_pdf = load_pdf_index_mapping()
+    map_centre_to_pdf = load_pdf_index_mapping()
 
     output_data = {}
 
@@ -1021,8 +1018,8 @@ def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn funct
     if operator_val == 2:  # operador OR
         pointer = []
         for term in processed_terms:
-            if lib_index.get(term):
-                pointer.extend(lib_index.get(term))
+            if centre_index.get(term):
+                pointer.extend(centre_index.get(term))
                 print("pointer_in", pointer)
 
         pointer = list(set(pointer))  # remove duplicados
@@ -1034,10 +1031,10 @@ def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn funct
         # Coletar textos dos documentos encontrados
         temp_file = []
         for j in pointer:
-            pdf_index = map_lib_to_pdf.get(j)
+            pdf_index = map_centre_to_pdf.get(j)
             print(f"pdf_index:{pdf_index}")
             if pdf_index is not None:
-                temp_file.append(lib_texts[pdf_index])
+                temp_file.append(centre_texts[pdf_index])
         print(f"temp_file :{temp_file }")
 
         if rank_by == "Sklearn function":
@@ -1065,8 +1062,8 @@ def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn funct
         pointer = None
         for term in processed_terms:
             term_docs = set()
-            if lib_index.get(term):
-                term_docs = set(lib_index.get(term))
+            if centre_index.get(term):
+                term_docs = set(centre_index.get(term))
 
             if pointer is None:
                 pointer = term_docs
@@ -1086,11 +1083,11 @@ def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn funct
 
         # Coletar textos dos documentos encontrados
         temp_file = []
-        map_lib_to_pdf = load_pdf_index_mapping()
+        map_centre_to_pdf = load_pdf_index_mapping()
         for j in pointer:
-            pdf_index = map_lib_to_pdf.get(j)
+            pdf_index = map_centre_to_pdf.get(j)
             if pdf_index is not None:
-                temp_file.append(lib_texts[pdf_index])
+                temp_file.append(centre_texts[pdf_index])
 
         if rank_by == "Sklearn function":
             tfidf_matrix = tfidf.fit_transform(temp_file)
@@ -1114,32 +1111,32 @@ def search_LIB_data2(input_text, operator_val, stem_lema, rank_by="Sklearn funct
                 output_data[doc_id] = cosine_output[idx]
 
     elif operator_val == 3:  # operadores lógicos (NOT, AND, OR)
-        # Usa a função search_with_operators_LIB já existente para operadores complexos
-        output_data = search_with_operators_LIB(input_text, stem_lema, rank_by)
+        # Usa a função search_with_operators_Centre já existente para operadores complexos
+        output_data = search_with_operators_Centre(input_text, stem_lema, rank_by)
 
     return output_data
 
-def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function"):
+def search_with_operators_Centre(input_text, stem_lema, rank_by="Sklearn function"):
     # Selecionar índices e textos conforme stem_lema
-    lib_index = lib_index_lema if stem_lema == 2 else lib_index_stemm
-    lib_texts = lib_texts_lema if stem_lema == 2 else lib_texts_stemm
+    centre_index = centre_index_lema if stem_lema == 2 else centre_index_stemm
+    centre_texts = centre_texts_lema if stem_lema == 2 else centre_texts_stemm
 
-    map_lib_to_pdf = load_pdf_index_mapping()
+    map_centre_to_pdf = load_pdf_index_mapping()
     and_groups, not_terms = parse_query(input_text)
 
     # 1. Processar NOTs
     docs_to_exclude = set()
     for term in not_terms:
         stemmed_term = process_term(term, stem_lema)
-        if stemmed_term in lib_index:
-            docs_to_exclude.update(set(lib_index[stemmed_term]))
+        if stemmed_term in centre_index:
+            docs_to_exclude.update(set(centre_index[stemmed_term]))
 
     # 2. Processar AND/OR
     all_matching_docs = set()
     for group in and_groups:
         # Ordenar termos por frequência
         terms_with_freq = [
-            (term, len(lib_index.get(process_term(term, stem_lema), [])))
+            (term, len(centre_index.get(process_term(term, stem_lema), [])))
             for term in group
         ]
         terms_sorted = sorted(terms_with_freq, key=lambda x: x[1])
@@ -1147,7 +1144,7 @@ def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function")
         group_docs = None
         for term, _ in terms_sorted:
             stemmed_term = process_term(term, stem_lema)
-            term_docs = set(lib_index.get(stemmed_term, []))
+            term_docs = set(centre_index.get(stemmed_term, []))
 
             if group_docs is None:
                 group_docs = term_docs
@@ -1161,7 +1158,7 @@ def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function")
 
     # 3. Aplicar NOTs
     final_docs = [doc_id for doc_id in all_matching_docs - docs_to_exclude
-                  if doc_id in map_lib_to_pdf]
+                  if doc_id in map_centre_to_pdf]
 
     # 4. Calcular similaridade
     output_data = {}
@@ -1176,10 +1173,10 @@ def search_with_operators_LIB(input_text, stem_lema, rank_by="Sklearn function")
         docs_texts = []
         valid_doc_ids = []
         for doc_id in final_docs:
-            pdf_index = map_lib_to_pdf.get(doc_id)
+            pdf_index = map_centre_to_pdf.get(doc_id)
             if pdf_index is not None:
                 try:
-                    docs_texts.append(lib_texts[pdf_index])
+                    docs_texts.append(centre_texts[pdf_index])
                     valid_doc_ids.append(doc_id)
                 except IndexError:
                     continue
@@ -1465,16 +1462,16 @@ def app():
             "Select Research Group:",
             sorted_groups,
             index=sorted_groups.index(
-                "LIB Mathematics Support Centre") if "LIB Mathematics Support Centre" in sorted_groups else 0
+                "Centre for Healthcare and Communities") if "Centre for Healthcare and Communities" in sorted_groups else 0
         )
 
         # Mostrar opções para todos os grupos
-        if selected_group == "LIB Mathematics Support Centre":
+        if selected_group == "Centre for Healthcare and Communities":
             option = st.radio(
-                "LIB Mathematics Options:",
+                "Centre for Healthcare and Communities Options:",
                 ["Show all publications", "Search within publications", "Search in PDFs"],
                 index=0,
-                key="lib_option",
+                key="centre_option",
                 horizontal=True,
             )
         else:
@@ -1600,8 +1597,8 @@ def app():
                         show_results(output_data, search_type)
 
 
-        elif option == "Search in PDFs" and selected_group == "LIB Mathematics Support Centre":
-            # Mostrar opções de pesquisa para os PDFs do LIB
+        elif option == "Search in PDFs" and selected_group == "Centre for Healthcare and Communities":
+            # Mostrar opções de pesquisa para os PDFs do Centre
             operator_val = st.radio(
                 "Search Filters",
                 ["AND", "OR", "Logical operators"],
@@ -1627,27 +1624,27 @@ def app():
             )
 
             if st.button("SEARCH"):
-                output_data = search_LIB_data2(
+                output_data = search_Centre_data2(
                     input_text,
                     1 if operator_val == 'AND' else (2 if operator_val == "OR" else 3),
                     1 if stem_lema == "Stemming" else 2,
                     rank_by
                 )
-                show_LIB_results(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
+                show_Centre_results(output_data, input_text, 1 if stem_lema == "Stemming" else 2)
 
 #-------MOSTRAR RESULTADOS DE PESQUISAS
 
 with open('pdf_texts.json', 'r') as f:
     pdf_texts_complete = ujson.load(f)
 
-def show_LIB_results(output_data, input_text=None, stem_lema=None):
+def show_Centre_results(output_data, input_text=None, stem_lema=None):
     # Carregar os dados completos
     aa = 0  # contador de resultados
     rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
 
     st.info(f"Showing results for: {len(rank_sorting)}")
 
-    map_lib_to_pdf = load_pdf_index_mapping()
+    map_centre_to_pdf = load_pdf_index_mapping()
 
     # Processar termos de busca de forma consistente com a indexação
     search_terms = []
@@ -1760,7 +1757,7 @@ def show_LIB_results(output_data, input_text=None, stem_lema=None):
 
             # Obter e mostrar excerto relevante
             pdf_text = ""
-            pdf_index = map_lib_to_pdf.get(id_val)
+            pdf_index = map_centre_to_pdf.get(id_val)
             if pdf_index is not None and pdf_index < len(pdf_texts_complete):
                 pdf_text = pdf_texts_complete[pdf_index]
 
@@ -1983,5 +1980,3 @@ def show_group_publications(group_name):
 
 if __name__ == '__main__':
     app()
-
-

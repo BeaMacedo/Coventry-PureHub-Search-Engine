@@ -1,4 +1,3 @@
-#Descarregar pdfs da area LIB Mathematics Support Centre
 import os
 import json
 import time
@@ -97,7 +96,6 @@ def extrair_texto_pdf(caminho_pdf):
         print(f"Erro ao processar o PDF {caminho_pdf}: {e}")
         return ""
 
-import re
 def limpar_texto(texto):
     if not texto:
         return ""
@@ -141,15 +139,17 @@ def remover_referencias(texto):
     # Retorna o texto original se a palavra 'references' não for encontrada
     return texto
 
-def descarregar_pdfs_LIB(limite=40):
+def descarregar_pdfs(limite=40):
     with open("scraper_results_groups_links.json", "r", encoding="utf-8") as f:
         publicacoes = json.load(f)
 
     driver, temp_dir = configurar_navegador()
-    pasta_destino = "pdfs_LIBMathematicsSupportCentre"
+    #pasta_destino = "pdfs_LIBMathematicsSupportCentre"
+    pasta_destino = "pdfs_CentreforHealthcareandCommunities"
     os.makedirs(pasta_destino, exist_ok=True)
 
-    grupo_alvo = "LIB Mathematics Support Centre"
+    #grupo_alvo = "LIB Mathematics Support Centre"
+    grupo_alvo = "Centre for Healthcare and Communities"
     count = 0
 
     textos_limpos = []
@@ -285,4 +285,4 @@ def descarregar_pdfs_LIB(limite=40):
     print(f"\n[✅] Processo concluído! {count} PDFs do {grupo_alvo} foram baixados e processados.")
 
 
-descarregar_pdfs_LIB()
+descarregar_pdfs()
