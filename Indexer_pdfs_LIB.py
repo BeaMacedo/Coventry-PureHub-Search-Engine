@@ -15,6 +15,10 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk import pos_tag
 from collections import defaultdict
 import nltk
+import logging
+
+# Configurar o nível de log para o pdfplumber
+logging.getLogger("pdfplumber").setLevel(logging.ERROR)
 
 
 stop_words = set(stopwords.words('english'))
@@ -139,7 +143,7 @@ def remover_referencias(texto):
     # Retorna o texto original se a palavra 'references' não for encontrada
     return texto
 
-def descarregar_pdfs(limite=40):
+def descarregar_pdfs(limite=55):
     with open("scraper_results_groups_links.json", "r", encoding="utf-8") as f:
         publicacoes = json.load(f)
 
@@ -171,6 +175,10 @@ def descarregar_pdfs(limite=40):
         titulo = pub.get("name", "sem_titulo")
 
         if grupo_alvo not in grupos or not pdf_url:
+            continue
+
+        if not pdf_url.lower().endswith('.pdf'):
+            print(f"[↪] Ignorando não-PDF: {titulo} ({pdf_url})")
             continue
 
         titulo_sanitizado = sanitize_filename(titulo) + ".pdf"
@@ -217,7 +225,6 @@ def descarregar_pdfs(limite=40):
                 texto_extraido = extrair_texto_pdf(caminho_final)
 
                 #texto_semrefs = remover_referencias(texto_extraido)
-                #texto_semcar = re.sub(r'[^\w\s]|_', ' ', texto_semrefs)  # Remove caracteres especiais
 
                 texto_semcar = re.sub(r'[^\w\s]|_', ' ', texto_extraido)  # Remove caracteres especiais
                 texto_limpo = limpar_texto(texto_semcar)

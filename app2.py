@@ -1411,7 +1411,7 @@ def app():
         if st.button("SEARCH"):
             if search_mode == "Regular search":
                 if search_type == "Publications":
-                    output_data = search_data(input_text, 1 if operator_val == 'AND' else (
+                    output_data = search_data2(input_text, 1 if operator_val == 'AND' else (
                                     2 if operator_val == "OR" else 3
                                 ), "publication", 1 if stem_lema == "Stemming" else 2,
                                 rank_by)
@@ -1886,8 +1886,8 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                 # Só mostrar se for uma lista com conteúdo
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
-                #st.markdown(f"Ranking: {float(ranking):.2f}")
-                st.markdown(f"Ranking: {ranking[0]:.2f}")
+                st.markdown(f"Ranking: {float(ranking):.2f}")
+                #st.markdown(f"Ranking: {ranking[0]:.2f}")
 
             elif search_type == "Authors":
                 st.markdown(f"**{author_name[id_val].strip()}**")

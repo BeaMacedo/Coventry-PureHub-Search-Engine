@@ -68,4 +68,4 @@ def create_ngram_indices_from_abstract():
     return bigram_index, trigram_index
 
 # Criar e guardar os índices
-create_ngram_indices_from_abstract()
+#create_ngram_indices_from_abstract()
