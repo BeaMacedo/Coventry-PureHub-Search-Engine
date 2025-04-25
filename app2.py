@@ -381,7 +381,6 @@ def parse_query(query):
 
     return and_groups, not_terms
 
-
 # Função pesquisa com AND ou OR
 def search_data2(input_text, operator_val, search_type, stem_lema, rank_by="Sklearn function"): # a que eu fiz que considera a query toda
     if stem_lema == 2:  # se lematizacao
