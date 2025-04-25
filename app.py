@@ -360,9 +360,9 @@ def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklea
                     for j in list(match_word):
                         output_data[j] = cos_out[list(match_word).index(j)]
 
-    #elif operator_val == 3:  # PESQUISA COM OPERADORES LOGICOS
+    elif operator_val == 3:  # PESQUISA COM OPERADORES LOGICOS
 
-        #output_data = search_with_operators(input_text, search_type, stem_lema)
+        output_data = search_with_operators(input_text, search_type, stem_lema)
 
     return output_data
 
@@ -601,7 +601,223 @@ def search_Centre_data(input_text, operator_val,stem_lema, rank_by= "Sklearn fun
 
     return output_data
 
-#----------- INDICES PDF Centre
+#----------- Pesquisas com logic operators
+
+def query_to_vector(query, word_to_index, corpus):
+
+    num_words = len(word_to_index)
+    query_vector = [0.0] * num_words
+
+    for word in query:
+        if word in word_to_index:
+            # Calcula TF-IDF apenas para palavras presentes no vocabulário
+            tf_idf_score = TF_IDF(word, query, corpus)
+            print(f"word_query: {word}, index: {word_to_index[word]}, score: {tf_idf_score}") #AAA
+            query_vector[word_to_index[word]] = tf_idf_score
+
+    return query_vector
+
+def costum_cosine_similarity(query_vector, doc_vectors):
+    # Converter para arrays numpy para operações vetorizadas
+    query_array = np.array(query_vector)
+    doc_matrix = np.array(doc_vectors)
+
+    # Calcular produto escalar (dot product) entre query e cada documento
+    dot_products = np.dot(doc_matrix, query_array)
+
+    # Calcular normas (magnitudes) dos vetores
+    query_norm = np.linalg.norm(query_array) #raiz da soma dos quadrados de todos os elementos da matriz
+    print(f"query_norm: {query_norm}")
+    doc_norms = np.linalg.norm(doc_matrix, axis=1) #axis = 1 para calcular a norma de cada linha/documento individualmente
+
+    # Calcular similaridades (evitando divisão por zero)
+    similarities = []
+    for dot, doc_norm in zip(dot_products, doc_norms):
+        if query_norm == 0 or doc_norm == 0:
+            similarities.append(0.0)
+        else:
+            similarities.append(dot / (query_norm * doc_norm)) #produto escalar dos vetores a dividir pelo produto das normas
+
+    return similarities
+
+def process_term(term, stem_lema):
+    # Processa um termo (stemming ou lematização)
+    word_list = word_tokenize(term)
+    stem_temp = ""
+
+    if stem_lema == 1:  # stemming
+        for x in word_list:
+            if x not in stop_words:
+                stem_temp += stemmer.stem(x) + " "
+    else:  # lematização
+        stem_temp = enhanced_lemmatize(' '.join([w.lower() for w in word_list if w.lower() not in stop_words]))
+
+    return stem_temp.strip()
+
+def parse_query(query):
+    # Processa a query e divide em partes AND, OR e NOT
+    query = query.lower().strip()
+
+    # Processar NOTs
+    not_terms = []
+    not_pattern = re.compile(r'not\s+([^\s]+)') #encontra termos/palavras precedidos pela palavra not
+    for match in not_pattern.finditer(query): #percorre todas as ocorrencias da regex na query
+        not_terms.append(match.group(1)) #adiciona essas ocorrencias à lista not_terms
+
+    # Remover NOTs para processar o resto
+    query_without_nots = not_pattern.sub('', query)
+
+    # Processar ORs (tem precedência sobre AND)
+    or_groups = [group.strip() for group in re.split(r'\bor\b', query_without_nots) if group.strip()]
+
+    # Processar ANDs em cada grupo OR
+    and_groups = []
+    for group in or_groups:
+        # Dividir por AND explícito ou espaços
+        terms = []
+        for part in re.split(r'\band\b|\s+', group):
+            if part.strip():
+                terms.append(part.strip())
+        if terms:
+            and_groups.append(terms)
+
+    return and_groups, not_terms
+
+def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn function"):
+    # Configuração dos índices
+    if stem_lema == 2:  # lematização
+        pub_index = pub_index_lemma
+        pub_list_first = pub_list_first_lemma
+        abstract_index = pub_abstract_index_lemma
+        pub_abstract_list_first = pub_abstract_list_first_lemma
+        author_index = author_index_lemma
+        author_list_first = author_list_first_lemma
+    else:  # stemming
+        pub_index = pub_index_stem
+        pub_list_first = pub_list_first_stem
+        abstract_index = pub_abstract_index_stem
+        pub_abstract_list_first = pub_abstract_list_first_stem
+        author_index = author_index_stem
+        author_list_first = author_list_first_stem
+
+    # Parse da query
+    and_groups, not_terms = parse_query(input_text)
+
+    # 1. Processar NOTs primeiro
+    docs_to_exclude = set()
+    for term in not_terms:
+        stemmed_term = process_term(term, stem_lema) #aplica stemming ou lematização ao termo
+
+        #vai ver todos os documentos onde esse termo aparece e guarda-os em docs_to_exclude
+        if search_type == "publication" and stemmed_term in pub_index:
+            docs_to_exclude.update(set(pub_index[stemmed_term]))
+        elif search_type == "author" and stemmed_term in author_index:
+            docs_to_exclude.update(set(author_index[stemmed_term]))
+        elif search_type == "abstract" and stemmed_term in abstract_index:
+            docs_to_exclude.update(set(abstract_index[stemmed_term]))
+
+    # 2. Processar OR groups
+    all_matching_docs = set() #começa como conjunto vazio
+
+    for group in and_groups: #cada grupo é uma lista de termos unidos por and
+        # Ordenar termos por frequência (do mais raro para o mais comum)
+        terms_with_freq = []
+        for term in group:
+            stemmed_term = process_term(term, stem_lema) #aplica stemming ou lematização ao termo
+            print(f"stemmed_term: {stemmed_term}")
+            freq = 0
+            if search_type == "publication" and stemmed_term in pub_index:
+                freq = len(pub_index[stemmed_term])
+            elif search_type == "author" and stemmed_term in author_index:
+                freq = len(author_index[stemmed_term])
+            elif search_type == "abstract" and stemmed_term in abstract_index:
+                freq = len(abstract_index[stemmed_term])
+            terms_with_freq.append((stemmed_term, freq))
+
+        # Ordenar termos pela frequência (ascendente)
+        terms_sorted = sorted(terms_with_freq, key=lambda x: x[1])
+
+        # Processar ANDs na ordem otimizada
+        group_docs = None
+        for term, _ in terms_sorted:
+            term_docs = set()
+            if search_type == "publication" and term in pub_index:
+                term_docs = set(pub_index[term])
+            elif search_type == "author" and term in author_index:
+                term_docs = set(author_index[term])
+            elif search_type == "abstract" and term in abstract_index:
+                term_docs = set(abstract_index[term])
+
+            if group_docs is None:
+                group_docs = term_docs
+            else:
+                group_docs.intersection_update(term_docs) #Vai reduzindo group_docs aos documentos que contém todos os termos do grupo (AND)
+                if not group_docs:  # Early exit se conjunto vazio
+                    break
+
+        if group_docs:
+            all_matching_docs.update(group_docs) #adiciona todos os elementos de group_docs ao conjunto
+
+    # 3. Aplicar NOTs
+    final_docs = all_matching_docs - docs_to_exclude
+    print("all_matching_docs:", all_matching_docs)
+    print( "docs_to_exclude:", docs_to_exclude)
+    print("final_docs:", final_docs)
+    # 4. Calcular similaridade do cosseno
+    output_data = {}
+    if final_docs:
+        # Preparar query para TF-IDF
+        query_terms = []
+        for group in and_groups:
+            for term in group:
+                stemmed_term = process_term(term, stem_lema)
+                query_terms.append(stemmed_term)
+        query_text = ' '.join(query_terms)
+        print(f"query_text: {query_text}")
+
+        # Preparar textos dos documentos
+        docs_texts = []
+        doc_ids = []
+        for doc_id in final_docs:
+            if search_type == "publication":
+                docs_texts.append(pub_list_first[doc_id])
+            elif search_type == "author":
+                docs_texts.append(author_list_first[doc_id])
+            elif search_type == "abstract":
+                docs_texts.append(pub_abstract_list_first[doc_id])
+            doc_ids.append(doc_id)
+
+        if rank_by == "Sklearn function":
+            # Calcular TF-IDF e similaridade do cosseno
+            tfidf_matrix = tfidf.fit_transform(docs_texts)
+            query_vector = tfidf.transform([query_text]) #transforma um texto (neste caso uma query) num vetor TF-IDF
+            cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
+
+            # Atribuir scores aos documentos
+            for idx, doc_id in enumerate(doc_ids): # idx corresponde à posição daquele documento na lista cosine_scores
+                output_data[doc_id] = cosine_scores[idx][0]
+            print(f"output_data_swo: {output_data}")
+
+        else:
+            tokenized_docs = [doc.split() for doc in docs_texts]
+            word_set = list(set(sum(tokenized_docs,[])))  # lista de palavras unicas que aparecem em todos os documentos do corpus, ou seja, sem repetições
+            word_to_index = {word: i for i, word in enumerate(
+                word_set)}  # mapeia cada palavra do vocabulário para um índice numérico, ou seja a primeira da palavra de word_set será uma chave que corresponderá ao seu indice na lista que é 0 {"1ºpalavra":0,..}
+            doc_vectors = tf_idf_vectorizer(tokenized_docs)  # Calcula os vetores TF-IDF manualmente
+
+            # Calcular a similaridade de cosseno entre o vetor da pesquisa e os vetores dos documentos
+            query_tokens = query_text.split()
+            print(f"word_to_index: {word_to_index}") #AAA
+            query_vec = query_to_vector(query_tokens, word_to_index, tokenized_docs)
+            cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
+
+            # Armazena a similaridade de cosseno no dicionário de resultados
+            for idx, doc_id in enumerate(doc_ids):
+                output_data[doc_id] = cosine_output[idx]
+            print(f"output_data: {output_data}")
+
+    return output_data
+
 def search_with_operators_Centre(input_text, stem_lema, rank_by="Sklearn function"):
     # Selecionar índices e textos conforme stem_lema
     centre_index = centre_index_lema if stem_lema == 2 else centre_index_stemm
@@ -704,12 +920,18 @@ with open('abstract_trigram_index.json', 'r', encoding='utf-8') as f:
     abstract_trigram_index = ujson.load(f)
 
 #PESQUISA EM BIGRAMAS E TRIGRAMAS
+def search_ngrams_only(input_text, operator_val, search_type = "publication", rank_by="Sklearn function"):
+    """
+    Pesquisa exclusiva em bigramas e trigramas com operadores lógicos
+    Args:
+        input_text: texto de pesquisa (frases entre aspas com operadores AND/OR)
+        operator_val: 1 (AND), 2 (OR)
+        search_type: "publication" ou "abstract"
+        rank_by: metodo de ranking
+    """
+    output_data = {}
 
-def search_ngrams_only(input_text, operator_val, search_type="publication", rank_by="Sklearn function"):
-    """
-    Pesquisa em bigramas/trigramas seguindo EXATAMENTE o raciocínio de search_data
-    """
-    # Configuração dos índices
+    # Selecionar o índice correto baseado no tipo de pesquisa
     if search_type == "publication":
         bigram_index = pubname_bigram_index
         trigram_index = pubname_trigram_index
@@ -723,167 +945,83 @@ def search_ngrams_only(input_text, operator_val, search_type="publication", rank
     else:
         return {}
 
-    # Extrair frases entre aspas (n-gramas)
-    phrases = [p.lower() for p in re.findall(r'"(.*?)"', input_text)]
+    # Extrair frases entre aspas (obrigatório para esta função)
+    phrases = re.findall(r'"(.*?)"', input_text)
     if not phrases:
+        return {}  # Requer pelo menos uma frase entre aspas
+
+    # Processar cada frase identificada (exata, sem processamento)
+    all_ngram_docs = []
+    invalid_phrases = []
+
+    for phrase in phrases:
+        phrase_lower = phrase.lower()
+        phrase_words = phrase_lower.split()
+        ngram_length = len(phrase_words)
+
+        # Verificar se é bigrama ou trigrama válido
+        if ngram_length == 2:
+            if phrase_lower in bigram_index:
+                all_ngram_docs.append(set(bigram_index[phrase_lower]))
+            else:
+                invalid_phrases.append(phrase)
+        elif ngram_length == 3:
+            if phrase_lower in trigram_index:
+                all_ngram_docs.append(set(trigram_index[phrase_lower]))
+            else:
+                invalid_phrases.append(phrase)
+        else:
+            invalid_phrases.append(phrase)
+
+    # Tratamento para frases inválidas
+    if invalid_phrases:
+        if operator_val == 1:  # AND - todas devem ser válidas
+            return {}
+        # Para OR, apenas ignoramos as inválidas e continuamos com as válidas
+
+    # Aplicar operador lógico apenas entre n-grams válidos
+    final_docs = set()
+
+    if operator_val == 1:  # AND - TODOS os n-grams devem estar presentes
+        if all_ngram_docs:
+            final_docs = set.intersection(*all_ngram_docs)
+        else:
+            return {}
+    elif operator_val == 2:  # OR - PELO MENOS UM n-gram deve estar presente
+        if all_ngram_docs:
+            final_docs = set.union(*all_ngram_docs)
+        else:
+            return {}
+
+    if not final_docs:
         return {}
 
+    # Converter para lista e preparar para ranking
+    final_docs = list(final_docs)
+    docs_texts = [pub_texts[doc_id] for doc_id in final_docs]
 
-    output_data = {}
-    if operator_val == 2:  # OPERADOR OR (igual à search_data)
-        pointer = []
+    # Preparar query para TF-IDF (usando todas as palavras dos n-grams)
+    query_text = ' '.join(phrase.lower() for phrase in phrases)
 
-        # 1. Coletar documentos para cada n-grama (como na search_data)
-        for phrase in phrases:
-            temp_file = []
-            stem_word_file = []  # Armazena cada n-grama individualmente
-            words = phrase.split()
-            if len(words) not in [2, 3]:  # Apenas bigramas/trigramas
-                continue
+    # Aplicar ranking
+    if rank_by == "Sklearn function":
+        tfidf_matrix = tfidf.fit_transform(docs_texts)
+        query_vector = tfidf.transform([query_text])
+        cosine_scores = cosine_similarity(tfidf_matrix, query_vector)
 
-            stem_word_file.append(phrase)  # Cada n-grama é tratado como um "termo"
+        for idx, doc_id in enumerate(final_docs):
+            output_data[doc_id] = cosine_scores[idx][0]
+    else:
+        tokenized_docs = [doc.split() for doc in docs_texts]
+        word_set = list(set(sum(tokenized_docs, [])))
+        word_to_index = {word: i for i, word in enumerate(word_set)}
 
-            # Verificar índices
-            if len(words) == 2 and phrase in bigram_index:
-                pointer = bigram_index[phrase]
-            elif len(words) == 3 and phrase in trigram_index:
-                pointer = trigram_index[phrase]
+        doc_vectors = tf_idf_vectorizer(tokenized_docs)
+        query_vec = query_to_vector(query_text.split(), word_to_index, tokenized_docs)
+        cosine_output = costum_cosine_similarity(query_vec, doc_vectors)
 
-            if len(pointer) == 0: #se nao encontrou nada no indice, sem resultados
-                output_data = {}
-
-            else:
-                for j in pointer:
-                    if search_type == "publication":
-                        temp_file.append(pub_texts[j])
-                    elif search_type == "abstract":
-                        temp_file.append(pub_texts[j])
-
-            if rank_by == "Sklearn function":
-                temp_file = tfidf.fit_transform(stem_word_file)
-                print(f"stem_word_file_or: {stem_word_file}")
-                cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-                for j in pointer:
-                    output_data[j] = cosine_output[pointer.index(j)]
-
-            else:
-                i = 0
-                matrix = []
-                for elem in temp_file:
-                    elem = tf_idf_vectorizer(elem.split())[0]
-                    matrix.append(elem)
-                    i += 1
-
-                print(f"matrix:{matrix}")
-                print(f"Tamanho da matriz:{len(matrix)}")
-
-                mat_inv = tf_idf_vectorizer(stem_word_file)
-                print(
-                    f"mat_inv(query)={mat_inv}")  # mat_inv(query)=[[1.0]] vai dar sempre so um valor pq é uma apalvra e vai ser sempre 1 pq aparece na query de pesquisa obviamente
-                cos_out = cos_sim(matrix, mat_inv)  # similaridade entre cada vetor do documento e a query
-                for j in pointer:
-                    output_data[j] = cos_out[pointer.index(j)]
-                    print(f"output_data {j}: {output_data[j]} ")
-
-
-    elif operator_val == 1:  # OPERADOR AND (igual à search_data)
-        match_word = []
-        pointer = []
-
-        # 1. Encontrar interseção de documentos (AND)
-        for phrase in phrases:
-            temp_file = []
-            set2 = set()
-            stem_word_file = []
-            words = phrase.split()
-            if len(words) not in [2, 3]:
-                continue
-
-            stem_word_file.append(phrase)
-
-            # Verificar índices
-            if len(words) == 2 and phrase in bigram_index:
-                set1 = set(bigram_index[phrase])
-                pointer.extend(list(set1))  # Adiciona o conjunto set1 ao pointer
-            elif len(words) == 3 and phrase in trigram_index:
-                set1 = set(trigram_index[phrase])
-                pointer.extend(list(set1))
-
-            if match_word == []:  # se match_word estiver vazia - 1ºtoken, ela será preenchida com documentos que já aparecem em pointer
-                match_word = list({z for z in pointer if z in set2 or (set2.add(z) or False)})
-            else:  # match_word vai conter no final os documentos onde aparecem TODOS os termos de pesquisa (interseção de set1 ao longo do loop)
-                match_word.extend(list(set1))
-                match_word = list({z for z in match_word if z in set2 or (set2.add(
-                    z) or False)})  # atualização da lista para garantir que apenas os documentos que correspondem a todos os tokens sejam mantidos.
-            print(f"match_word_first: {match_word}")
-
-            if len(phrases) > 1:
-                match_word = {z for z in match_word if z in set2 or (set2.add(z) or False)}
-                print(f"match_word_first: {match_word}")
-                if len(match_word) == 0:  # se nenhum documento satisfaz faz a query
-                    output_data = {}
-
-                else:  # se houver match, vamos calcular tf-idf e similaridade com o cos
-                    for j in list(match_word):
-                        print(f"j: {j}")
-                        if search_type == "publication":
-                            temp_file.append(pub_texts[j])
-                        elif search_type == "abstract":
-                            temp_file.append(pub_texts[j])
-
-
-                    if rank_by == "Sklearn function":
-                        temp_file = tfidf.fit_transform(temp_file)
-                        print(f"stem_word_file: {stem_word_file}")
-                        cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-                        print("cosine_output_and: ", cosine_output)
-                        # print(f"list(match_word):{list(match_word)}")
-                        for j in list(match_word):
-                            output_data[j] = cosine_output[list(match_word).index(j)]
-                            print(f"output_data_fim: {output_data}")
-                    else:
-                        i = 0
-                        matrix = []
-                        for elem in temp_file:
-                            elem = tf_idf_vectorizer(elem.split())[0]  # lista de vetores tf-idf para cada documento, com as palabvras unicas de cada documento, logo as listas nao vao ter o mesmo tamanho
-                            matrix.append(elem)
-                            i += 1
-                        mat_inv = tf_idf_vectorizer(stem_word_file)  # vai ser sempre 1 pq a palavra vai estar lá? E aqui vai sempre comparar com a ultima palavra.
-                        cos_out = cos_sim(matrix, mat_inv)
-                        for j in list(match_word):
-                            output_data[j] = cos_out[list(match_word).index(j)]
-
-            else:
-                if len(pointer) == 0:
-                    output_data = {}
-                else:
-                    for j in pointer:
-                        print(f"j: {j}")
-                        if search_type == "publication":
-                            temp_file.append(pub_texts[j])
-                        elif search_type == "abstract":
-                            temp_file.append(pub_texts[j])
-
-                    if rank_by == "Sklearn function":
-                        temp_file = tfidf.fit_transform(temp_file)
-                        print(f"stem_word_file: {stem_word_file}")
-                        cosine_output = cosine_similarity(temp_file, tfidf.transform(stem_word_file))
-                        print("cosine_output_and: ", cosine_output)
-                        # print(f"list(match_word):{list(match_word)}")
-                        for j in list(match_word):
-                            output_data[j] = cosine_output[list(match_word).index(j)]
-                            print(f"output_data_fim: {output_data}")
-                    else:
-                        i = 0
-                        matrix = []
-                        for elem in temp_file:
-                            elem = tf_idf_vectorizer(elem.split())[0]  # lista de vetores tf-idf para cada documento, com as palabvras unicas de cada documento, logo as listas nao vao ter o mesmo tamanho
-                            matrix.append(elem)
-                            i += 1
-                        mat_inv = tf_idf_vectorizer(stem_word_file)  # vai ser sempre 1 pq a palavra vai estar lá? E aqui vai sempre comparar com a ultima palavra.
-                        cos_out = cos_sim(matrix, mat_inv)
-                        for j in list(match_word):
-                            output_data[j] = cos_out[list(match_word).index(j)]
+        for idx, doc_id in enumerate(final_docs):
+            output_data[doc_id] = cosine_output[idx]
 
     return output_data
 
