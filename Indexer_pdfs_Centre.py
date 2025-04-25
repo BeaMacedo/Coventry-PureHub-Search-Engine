@@ -292,4 +292,4 @@ def descarregar_pdfs(limite=55):
     print(f"\n[✅] Processo concluído! {count} PDFs do {grupo_alvo} foram baixados e processados.")
 
 
-descarregar_pdfs()
+#descarregar_pdfs()

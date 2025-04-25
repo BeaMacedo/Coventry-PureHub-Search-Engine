@@ -282,12 +282,9 @@ def adicionar_pdf_links(): #adicionar links dos pdfs nos resultados das pesquisa
 
 
 
+
 #função para ver se o numero de publicações de uma dado autor corresponde ao numero correto de aplicações
-
-import json
-
-
-def count_author_publications(author_name, file_path='scraper_results_with_abstracts.json'):
+'''def count_author_publications(author_name, file_path='scraper_results_with_abstracts.json'):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             data = json.load(file)
@@ -306,3 +303,4 @@ def count_author_publications(author_name, file_path='scraper_results_with_abstr
 
 count_author_publications("Sally Abbott", file_path='scraper_results_with_abstracts.json')
 count_author_publications("Sally Dibb", file_path='scraper_results_with_abstracts.json')
+'''
