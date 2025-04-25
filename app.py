@@ -68,12 +68,6 @@ with open('pub_linksPDF.json', 'r') as f:
 with open('scraper_results_groups_links.json', 'r', encoding='utf-8') as f:
     pub_group_links = ujson.load(f)
 
-
-#ACHO QUE NAO ESTAMOS A USAR
-# Carregar os índices específicos para o grupo Centre
-with open('pdfs_indexed_dictionary.json', 'r', encoding='utf-8') as f:
-    centre_index = ujson.load(f)
-
 #-------- FUNÇÕES PARA USAR NA LEMATIZAÇÃO
 # Função para converter POS tags para o formato WordNet
 def get_wordnet_pos(treebank_tag):
@@ -618,29 +612,6 @@ def query_to_vector(query, word_to_index, corpus):
 
     return query_vector
 
-def costum_cosine_similarity(query_vector, doc_vectors):
-    # Converter para arrays numpy para operações vetorizadas
-    query_array = np.array(query_vector)
-    doc_matrix = np.array(doc_vectors)
-
-    # Calcular produto escalar (dot product) entre query e cada documento
-    dot_products = np.dot(doc_matrix, query_array)
-
-    # Calcular normas (magnitudes) dos vetores
-    query_norm = np.linalg.norm(query_array) #raiz da soma dos quadrados de todos os elementos da matriz
-    print(f"query_norm: {query_norm}")
-    doc_norms = np.linalg.norm(doc_matrix, axis=1) #axis = 1 para calcular a norma de cada linha/documento individualmente
-
-    # Calcular similaridades (evitando divisão por zero)
-    similarities = []
-    for dot, doc_norm in zip(dot_products, doc_norms):
-        if query_norm == 0 or doc_norm == 0:
-            similarities.append(0.0)
-        else:
-            similarities.append(dot / (query_norm * doc_norm)) #produto escalar dos vetores a dividir pelo produto das normas
-
-    return similarities
-
 def process_term(term, stem_lema):
     # Processa um termo (stemming ou lematização)
     word_list = word_tokenize(term)
@@ -683,6 +654,29 @@ def parse_query(query):
             and_groups.append(terms)
 
     return and_groups, not_terms
+
+def costum_cosine_similarity(query_vector, doc_vectors):
+    # Converter para arrays numpy para operações vetorizadas
+    query_array = np.array(query_vector)
+    doc_matrix = np.array(doc_vectors)
+
+    # Calcular produto escalar (dot product) entre query e cada documento
+    dot_products = np.dot(doc_matrix, query_array)
+
+    # Calcular normas (magnitudes) dos vetores
+    query_norm = np.linalg.norm(query_array) #raiz da soma dos quadrados de todos os elementos da matriz
+    print(f"query_norm: {query_norm}")
+    doc_norms = np.linalg.norm(doc_matrix, axis=1) #axis = 1 para calcular a norma de cada linha/documento individualmente
+
+    # Calcular similaridades (evitando divisão por zero)
+    similarities = []
+    for dot, doc_norm in zip(dot_products, doc_norms):
+        if query_norm == 0 or doc_norm == 0:
+            similarities.append(0.0)
+        else:
+            similarities.append(dot / (query_norm * doc_norm)) #produto escalar dos vetores a dividir pelo produto das normas
+
+    return similarities
 
 def search_with_operators(input_text, search_type, stem_lema, rank_by="Sklearn function"):
     # Configuração dos índices
@@ -1769,7 +1763,6 @@ def show_results1(output_data, search_type, input_text=None, stem_lema=None):
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
                 st.markdown(f"Ranking: {float(ranking):.2f}")
-                #st.markdown(f"Ranking: {ranking[0]:.2f}")
 
             elif search_type == "Authors":
                 st.markdown(f"**{author_name[id_val].strip()}**")
@@ -1859,7 +1852,6 @@ def show_group_publications(group_name):
         aa += 1
 
     st.info(f"Results shown: {aa}")
-
 
 if __name__ == '__main__':
     app()
