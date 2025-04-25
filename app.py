@@ -385,7 +385,7 @@ with open('pdf_list_lemma.json', 'r', encoding='utf-8') as f:
     centre_texts_lema = ujson.load(f)
 
 #-------- PESQUISA NOS PDFS Centre
-def search_Centre_data(input_text, operator_val,stem_lema, rank_by= "Sklearn function"): #1º função que segue o raciocinio da ja feita
+def search_Centre_data(input_text, operator_val,stem_lema, rank_by= "Sklearn function"):
 
     output_data = {}
 
@@ -600,12 +600,6 @@ def search_Centre_data(input_text, operator_val,stem_lema, rank_by= "Sklearn fun
         output_data = search_with_operators_Centre(input_text, stem_lema, rank_by)
 
     return output_data
-
-
-
-
-
-
 
 
 #----------- Pesquisas com logic operators
@@ -1124,19 +1118,29 @@ def app():
                                     2 if operator_val == "OR" else 3
                                 ), "publication", 1 if stem_lema == "Stemming" else 2,
                                 rank_by)
-                    show_results(output_data, search_type)
+                    if operator_val == "Logical operators":
+                        show_results1(output_data, search_type)
+                    else:
+                        show_results(output_data, search_type)
                 elif search_type == "Authors":
                     output_data = search_data(input_text, 1 if operator_val == 'AND' else (
                                     2 if operator_val == "OR" else 3
                                 ), "author", 1 if stem_lema == "Stemming" else 2,
                                 rank_by)
-                    show_results(output_data, search_type)
+                    if operator_val == "Logical operators":
+                        show_results1(output_data, search_type)
+                    else:
+                        show_results(output_data, search_type)
                 elif search_type == "Abstracts":
                     output_data = search_data(input_text, 1 if operator_val == 'AND' else (
                                     2 if operator_val == "OR" else 3
                                 ), "abstract", 1 if stem_lema == "Stemming" else 2,
                                 rank_by)
-                    show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+                    if operator_val == "Logical operators":
+                        show_results1(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+                    else:
+                        show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+
             elif search_mode == "Bigramas/Trigramas search":  # Bigramas/Trigramas search
                 if search_type == "Publications":
                     output_data = search_ngrams_only(
@@ -1266,7 +1270,12 @@ def app():
                                                    rank_by)
                         # Filtrar apenas os resultados que estão no grupo
                         output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
-                        show_results(output_data, search_type)
+
+                        if operator_val == "Logical operators":
+                            show_results1(output_data, search_type)
+                        else:
+                            show_results(output_data, search_type)
+
                     elif search_type == "Authors":
                         output_data = search_data(input_text, 1 if operator_val == 'AND' else (
                             2 if operator_val == "OR" else 3
@@ -1274,7 +1283,10 @@ def app():
                                                    rank_by)
                         # Filtrar apenas os resultados que estão no grupo
                         output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
-                        show_results(output_data, search_type)
+                        if operator_val == "Logical operators":
+                            show_results1(output_data, search_type)
+                        else:
+                            show_results(output_data, search_type)
                     elif search_type == "Abstracts":
                         output_data = search_data(input_text, 1 if operator_val == 'AND' else (
                             2 if operator_val == "OR" else 3
@@ -1282,7 +1294,12 @@ def app():
                                                    rank_by)
                         # Filtrar apenas os resultados que estão no grupo
                         output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
-                        show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+                        if operator_val == "Logical operators":
+                            show_results1(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+                        else:
+                            show_results(output_data, search_type, input_text, 1 if stem_lema == "Stemming" else 2)
+
+
                 else:  # Bigramas/Trigramas search
                     if search_type == "Publications":
                         output_data = search_ngrams_only(
@@ -1606,6 +1623,7 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                 # Só mostrar se for uma lista com conteúdo
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
+
                 #st.markdown(f"Ranking: {float(ranking):.2f}")
                 st.markdown(f"Ranking: {ranking[0]:.2f}")
 
@@ -1667,7 +1685,7 @@ def show_results1(output_data, search_type, input_text=None, stem_lema=None):
         text_lower = text.lower()
         matches = []
 
-        # 1. Primeiro busca pelos termos originais exatos
+        # 1. Primeiro procura pelos termos originais exatos
         for term in original_terms:
             term_lower = term.lower()
             start = 0
@@ -1762,7 +1780,8 @@ def show_results1(output_data, search_type, input_text=None, stem_lema=None):
                 # Só mostrar se for uma lista com conteúdo
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
-                st.markdown(f"Ranking: {ranking[0]:.2f}")
+                st.markdown(f"Ranking: {float(ranking):.2f}")
+
 
             elif search_type == "Abstracts":
                 abstract = pub_abstract[id_val]
@@ -1774,6 +1793,7 @@ def show_results1(output_data, search_type, input_text=None, stem_lema=None):
                 # Só mostrar se for uma lista com conteúdo
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
+                st.markdown(f"Ranking: {float(ranking):.2f}")
 
                 content = highlight_search_terms(abstract, original_terms, search_terms)
                 st.markdown(content)
