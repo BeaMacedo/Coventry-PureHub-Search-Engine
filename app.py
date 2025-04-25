@@ -601,6 +601,13 @@ def search_Centre_data(input_text, operator_val,stem_lema, rank_by= "Sklearn fun
 
     return output_data
 
+
+
+
+
+
+
+
 #----------- Pesquisas com logic operators
 
 def query_to_vector(query, word_to_index, corpus):
@@ -1138,7 +1145,7 @@ def app():
                         "publication",
                         rank_by
                     )
-                    show_results(output_data, search_type)
+                    show_results1(output_data, search_type)
                 elif search_type == "Abstracts":
                     output_data = search_ngrams_only(
                         input_text,
@@ -1146,7 +1153,7 @@ def app():
                         "abstract",
                         rank_by
                     )
-                    show_results(output_data, search_type)
+                    show_results1(output_data, search_type)
 
     elif st.session_state.mode == "research_groups":
         # Obter todos os grupos de pesquisa únicos
@@ -1286,7 +1293,7 @@ def app():
                         )
                         # Filtrar apenas os resultados que estão no grupo
                         output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
-                        show_results(output_data, search_type)
+                        show_results1(output_data, search_type)
                     elif search_type == "Abstracts":
                         output_data = search_ngrams_only(
                             input_text,
@@ -1296,7 +1303,7 @@ def app():
                         )
                         # Filtrar apenas os resultados que estão no grupo
                         output_data = {k: v for k, v in output_data.items() if k in group_pub_ids}
-                        show_results(output_data, search_type)
+                        show_results1(output_data, search_type)
 
 
         elif option == "Search in PDFs" and selected_group == "Centre for Healthcare and Communities":
@@ -1601,6 +1608,150 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                     st.markdown(f"**{', '.join(groups)}**")
                 #st.markdown(f"Ranking: {float(ranking):.2f}")
                 st.markdown(f"Ranking: {ranking[0]:.2f}")
+
+            elif search_type == "Authors":
+                st.markdown(f"**{author_name[id_val].strip()}**")
+                st.markdown(f"*{pub_name[id_val].strip()}*")
+
+                # Só mostra o grupo de investigação se existir
+                groups = pub_groups[id_val]
+                # Só mostrar se for uma lista com conteúdo
+                if isinstance(groups, list) and groups:
+                    st.markdown(f"**{', '.join(groups)}**")
+                st.markdown(f"Ranking: {ranking[0]:.2f}")
+
+            elif search_type == "Abstracts":
+                abstract = pub_abstract[id_val]
+                st.markdown(f"**{author_name[id_val].strip()}**")
+                st.markdown(f"*{pub_name[id_val].strip()}*")
+
+                # Só mostra o grupo de investigação se existir
+                groups = pub_groups[id_val]
+                # Só mostrar se for uma lista com conteúdo
+                if isinstance(groups, list) and groups:
+                    st.markdown(f"**{', '.join(groups)}**")
+
+                content = highlight_search_terms(abstract, original_terms, search_terms)
+                st.markdown(content)
+
+            # Links [o mesmo código anterior]
+            if id_val < len(pub_url) and pub_url[id_val].strip():
+                st.markdown(f"[View on website]({pub_url[id_val]})", unsafe_allow_html=True)
+
+        aa += 1
+
+    if aa == 0:
+        st.info("No results found. Please try again.")
+
+def show_results1(output_data, search_type, input_text=None, stem_lema=None):
+    aa = 0
+    rank_sorting = sorted(output_data.items(), key=lambda z: z[1], reverse=True)
+
+    st.info(f"Showing results for: {len(rank_sorting)}")
+
+    # Processar termos de busca
+    search_terms = []
+    original_terms = []
+    if search_type == "Abstracts" and input_text:
+        original_terms = [term.lower() for term in input_text.split()
+                          if term.lower() not in stop_words]
+        if stem_lema == 1:  # stemming
+            search_terms = [stemmer.stem(term) for term in original_terms]
+        else:  # lematização
+            search_terms = enhanced_lemmatize(input_text).split()
+
+    def highlight_search_terms(text, original_terms, processed_terms):
+        if not text or not (original_terms or processed_terms):
+            return text[:200] + "..." if len(text) > 200 else text
+
+        text_lower = text.lower()
+        matches = []
+
+        # 1. Primeiro busca pelos termos originais exatos
+        for term in original_terms:
+            term_lower = term.lower()
+            start = 0
+            while True:
+                pos = text_lower.find(term_lower, start)
+                if pos == -1:
+                    break
+                # Captura a palavra exata como aparece no texto
+                exact_word = text[pos:pos + len(term)]
+                matches.append((pos, exact_word, True))  # True = termo original
+                start = pos + len(term)
+
+        # 2. Se não encontrou originais, busca pelos termos processados
+        if not matches:
+            for term in processed_terms:
+                term_lower = term.lower()
+                start = 0
+                while True:
+                    pos = text_lower.find(term_lower, start)
+                    if pos == -1:
+                        break
+                    # Captura a palavra como aparece no texto
+                    matched_word = text[pos:pos + len(term)]
+                    matches.append((pos, matched_word, False))  # False = termo processado
+                    start = pos + len(term)
+
+        if not matches:
+            return "(Search terms not found) " + (text[:200] + "..." if len(text) > 200 else text)
+
+        # Ordenar matches por posição
+        matches.sort()
+
+        # Construir o texto com highlights
+        result = []
+        last_end = 0
+
+        for pos, word, is_original in matches:
+            # Adicionar texto antes do match
+            if pos > last_end:
+                result.append(text[last_end:pos])
+
+            # Adicionar palavra destacada (todas em negrito)
+            result.append(f"**{word}**")
+            last_end = pos + len(word)
+
+        # Adicionar texto restante
+        if last_end < len(text):
+            result.append(text[last_end:])
+
+        full_text = "".join(result)
+
+        # Limitar tamanho mantendo contexto
+        if len(full_text) > 400:
+            first_highlight = full_text.find("**")
+            if first_highlight > 0:
+                start = max(0, first_highlight - 100)
+                end = min(len(full_text), first_highlight + 300)
+                return "..." + full_text[start:end] + "..."
+            return full_text[:400] + "..."
+
+        return full_text
+
+    N_cards_per_row = 3
+    for n_row, (id_val, ranking) in enumerate(rank_sorting):
+        i = n_row % N_cards_per_row
+        if i == 0:
+            st.write("---")
+            cols = st.columns(N_cards_per_row, gap="large")
+
+        with cols[n_row % N_cards_per_row]:
+            st.caption(f"{pub_date[id_val].strip()}")
+
+            if search_type == "Publications":
+                content = pub_name[id_val].strip()
+                st.markdown(f"**{author_name[id_val].strip()}**")
+                st.markdown(f"*{content}*")
+
+                # Só mostra o grupo de investigação se existir
+                groups = pub_groups[id_val]
+                # Só mostrar se for uma lista com conteúdo
+                if isinstance(groups, list) and groups:
+                    st.markdown(f"**{', '.join(groups)}**")
+                st.markdown(f"Ranking: {float(ranking):.2f}")
+                #st.markdown(f"Ranking: {ranking[0]:.2f}")
 
             elif search_type == "Authors":
                 st.markdown(f"**{author_name[id_val].strip()}**")
