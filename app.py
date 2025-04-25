@@ -152,7 +152,7 @@ def cos_sim(mat_A, mat_B):
 #-------- PESQUISAR UTILIZANDO QUERIES COM OS OPERADORES LÓGICOS AND, OR, NOT
 
 # Função pesquisa com AND ou OR
-def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklearn function"): #função de procura
+def search_data(input_text, operator_val, search_type, stem_lema, rank_by="Sklearn function"):
 
     if stem_lema == 2:  # se lematizacao
         pub_index = pub_index_lemma
@@ -607,7 +607,7 @@ def query_to_vector(query, word_to_index, corpus):
         if word in word_to_index:
             # Calcula TF-IDF apenas para palavras presentes no vocabulário
             tf_idf_score = TF_IDF(word, query, corpus)
-            print(f"word_query: {word}, index: {word_to_index[word]}, score: {tf_idf_score}") #AAA
+            #print(f"word_query: {word}, index: {word_to_index[word]}, score: {tf_idf_score}")
             query_vector[word_to_index[word]] = tf_idf_score
 
     return query_vector
@@ -1618,7 +1618,6 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
 
-                #st.markdown(f"Ranking: {float(ranking):.2f}")
                 st.markdown(f"Ranking: {ranking[0]:.2f}")
 
             elif search_type == "Authors":
@@ -1642,6 +1641,7 @@ def show_results(output_data, search_type, input_text=None, stem_lema=None):
                 # Só mostrar se for uma lista com conteúdo
                 if isinstance(groups, list) and groups:
                     st.markdown(f"**{', '.join(groups)}**")
+                st.markdown(f"Ranking: {ranking[0]:.2f}")
 
                 content = highlight_search_terms(abstract, original_terms, search_terms)
                 st.markdown(content)
